@@ -28,14 +28,20 @@ def process_document(file_name, file_type, raw_text):
     chunks = chunk_text(raw_text)
     embeddings = generate_embeddings(chunks)
 
+    chunked_data = []
+    for chunk, embedding in zip(chunks, embeddings):
+        chunked_data.append({
+            "text": chunk,
+            "embedding": embedding
+        })
+
     document = {
         "document_id": str(uuid.uuid4()),
         "filename": file_name,
         "file_type": file_type,
         "raw_text": raw_text,
-        "chunks": chunks,
-        "embeddings": embeddings,
-        "summary": {},  # You can fill this later
+        "chunks": chunked_data,  # <-- FIXED: chunks + embeddings merged
+        "summary": {},
         "QnA_log": []
     }
 
