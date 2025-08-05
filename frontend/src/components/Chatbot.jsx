@@ -53,10 +53,12 @@ const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
         // You can include document context or ID here
         document_ids: [documentId]
       }, {
-        timeout: 60000 // 60 second timeout
+        timeout: 120000 // 120 second timeout
       });
 
-      const botReply = response.data.reply || "I'm processing your request. Could you please try rephrasing your question?";
+      console.log('📥 Frontend received response:', response.data);
+      const botReply = response.data.answer || response.data.reply || "I'm processing your request. Could you please try rephrasing your question?";
+      console.log('💬 Bot reply:', botReply);
       setMessages((prev) => [...prev, { 
         sender: 'bot', 
         text: botReply, 

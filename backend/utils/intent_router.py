@@ -1,7 +1,7 @@
 from utils.rag_pipeline import handle_rag_query
 from utils.summarizer import summarize_documents
 from utils.comparison import compare_documents
-import ollama
+import requests
 
 # Intent Routing Prompt
 def route_query_prompt(user_query):
@@ -30,23 +30,49 @@ Which task (1, 2, 3, or 4) should be activated? Only respond with a number.
 def detect_intent(user_query):
     try:
         prompt = route_query_prompt(user_query)
-        response = ollama.chat(model='phi3', messages=[{"role": "user", "content": prompt}])
-
-        try:
-            intent_number = int(response['message']['content'].strip())
-            return intent_number
-        except Exception:
-            return 1  # Default to RAG if detection fails
+        
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+                            json={
+                    "model": "tinyllama", 
+                    "prompt": prompt, 
+                    "stream": False,
+                    "options": {
+                        "num_predict": 10,   # Very short response for intent detection
+                        "temperature": 0.0,   # Deterministic for intent detection
+                        "top_p": 0.1,         # Very fast sampling
+                        "top_k": 1            # Very fast sampling
+                    }
+                },
+            timeout=30  # 30 second timeout for intent detection
+        )
+        
+        if response.status_code == 200:
+            try:
+                intent_number = int(response.json()['response'].strip())
+                return intent_number
+            except Exception:
+                return 1  # Default to RAG if detection fails
+        else:
+            print(f"Ollama intent detection failed with status {response.status_code}")
+            return 1  # Default to RAG
+            
+    except requests.exceptions.Timeout:
+        print("⏰ Ollama intent detection timeout, using keyword fallback...")
+        return detect_intent_keywords(user_query)
     except Exception as e:
         print(f"Ollama intent detection failed: {str(e)}")
-        # Simple keyword-based fallback
-        query_lower = user_query.lower()
-        if any(word in query_lower for word in ['summarize', 'summary', 'overview', 'gist']):
-            return 2
-        elif any(word in query_lower for word in ['compare', 'comparison', 'difference']):
-            return 3
-        else:
-            return 1  # Default to RAG
+        return detect_intent_keywords(user_query)
+
+def detect_intent_keywords(user_query):
+    """Simple keyword-based intent detection fallback"""
+    query_lower = user_query.lower()
+    if any(word in query_lower for word in ['summarize', 'summary', 'overview', 'gist']):
+        return 2
+    elif any(word in query_lower for word in ['compare', 'comparison', 'difference']):
+        return 3
+    else:
+        return 1  # Default to RAG
 
 # Master Intent Router Function
 def handle_query(user_query, document_ids):

@@ -31,8 +31,18 @@ Please provide a clear, structured summary that covers the main points and key i
         try:
             response = requests.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "phi3", "prompt": prompt, "stream": False},
-                timeout=60  # 60 second timeout for summarization
+                json={
+                    "model": "tinyllama", 
+                    "prompt": prompt, 
+                    "stream": False,
+                    "options": {
+                        "num_predict": 300,  # Limit response length for summaries
+                        "temperature": 0.2,   # Lower temperature for consistent summaries
+                        "top_p": 0.9,         # Faster sampling
+                        "top_k": 40           # Faster sampling
+                    }
+                },
+                timeout=120  # 120 second timeout for summarization
             )
             
             if response.status_code == 200:

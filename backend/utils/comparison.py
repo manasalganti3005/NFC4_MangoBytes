@@ -39,8 +39,8 @@ Please provide a detailed comparison highlighting similarities, differences, and
         try:
             response = requests.post(
                 "http://localhost:11434/api/generate",
-                json={"model": "phi3", "prompt": prompt, "stream": False},
-                timeout=60  # 60 second timeout for comparison
+                json={"model": "tinyllama", "prompt": prompt, "stream": False},
+                timeout=120  # 120 second timeout for comparison
             )
             
             if response.status_code == 200:

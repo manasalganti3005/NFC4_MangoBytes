@@ -9,17 +9,17 @@ def test_ollama_connection():
         if response.status_code == 200:
             print("✅ Ollama is running and accessible")
             
-            # Check if phi3 model is available
+            # Check if tinyllama model is available
             models = response.json().get('models', [])
-            phi3_available = any('phi3' in model.get('name', '').lower() for model in models)
+            tinyllama_available = any('tinyllama' in model.get('name', '').lower() for model in models)
             
-            if phi3_available:
-                print("✅ Phi3 model is available")
+            if tinyllama_available:
+                print("✅ TinyLLaMA model is available")
             else:
-                print("❌ Phi3 model not found. Available models:")
+                print("❌ TinyLLaMA model not found. Available models:")
                 for model in models:
                     print(f"  - {model.get('name', 'Unknown')}")
-                print("\nTo install phi3 model, run: ollama pull phi3")
+                print("\nTo install TinyLLaMA model, run: ollama pull tinyllama")
         else:
             print(f"❌ Ollama responded with status code: {response.status_code}")
             
@@ -36,8 +36,8 @@ def test_ollama_generation():
     try:
         response = requests.post(
             "http://localhost:11434/api/generate",
-            json={"model": "phi3", "prompt": "Hello, this is a test.", "stream": False},
-            timeout=30  # Increased timeout to 30 seconds
+            json={"model": "tinyllama", "prompt": "Hello, this is a test.", "stream": False},
+            timeout=120  # Increased timeout to 120 seconds
         )
         
         if response.status_code == 200:

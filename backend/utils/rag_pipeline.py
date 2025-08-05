@@ -138,15 +138,39 @@ Question:
 Answer:"""
 
         try:
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "phi3", "prompt": prompt, "stream": False},
-                timeout=45  # 45 second timeout for RAG queries
-            )
+            from utils.fast_ollama import fast_generate
             
-            if response.status_code == 200:
-                answer = response.json().get('response', 'No response generated')
+            # Try fast generation first
+            answer = fast_generate(prompt, max_tokens=150, timeout=60)
+            
+            if answer:
+                print("✅ Fast generation successful")
+            else:
+                print("⏰ Fast generation failed, trying standard generation...")
+                # Fallback to standard generation
+                response = requests.post(
+                    "http://localhost:11434/api/generate",
+                                    json={
+                    "model": "tinyllama", 
+                    "prompt": prompt, 
+                    "stream": False,
+                    "options": {
+                        "num_predict": 200,
+                        "temperature": 0.3,
+                        "top_p": 0.9,
+                        "top_k": 40
+                    }
+                },
+                    timeout=120
+                )
                 
+                if response.status_code == 200:
+                    answer = response.json().get('response', 'No response generated')
+                else:
+                    answer = None
+            
+            # Return the answer
+            if answer:
                 if with_trace:
                     sources = ", ".join([r["filename"] for r in results])
                     return {
@@ -158,7 +182,7 @@ Answer:"""
                         "answer": answer
                     }
             else:
-                print(f"❌ Ollama returned status {response.status_code}, using simple fallback...")
+                print(f"❌ Ollama generation failed, using simple fallback...")
                 from utils.simple_rag import handle_simple_rag_query
                 return handle_simple_rag_query(user_query, document_ids)
                 
