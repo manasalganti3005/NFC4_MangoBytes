@@ -1,6 +1,6 @@
 from utils.rag_pipeline import handle_rag_query
-from summarizer import summarize_documents
-from comparison import compare_documents
+from utils.summarizer import summarize_documents
+from utils.comparison import compare_documents
 import ollama
 
 # Intent Routing Prompt
@@ -28,35 +28,59 @@ Which task (1, 2, 3, or 4) should be activated? Only respond with a number.
 
 # Intent Detection using Ollama
 def detect_intent(user_query):
-    prompt = route_query_prompt(user_query)
-    response = ollama.chat(model='phi3', messages=[{"role": "user", "content": prompt}])
-
     try:
-        intent_number = int(response['message']['content'].strip())
-        return intent_number
-    except Exception:
-        return 1  # Default to RAG if detection fails
+        prompt = route_query_prompt(user_query)
+        response = ollama.chat(model='phi3', messages=[{"role": "user", "content": prompt}])
+
+        try:
+            intent_number = int(response['message']['content'].strip())
+            return intent_number
+        except Exception:
+            return 1  # Default to RAG if detection fails
+    except Exception as e:
+        print(f"Ollama intent detection failed: {str(e)}")
+        # Simple keyword-based fallback
+        query_lower = user_query.lower()
+        if any(word in query_lower for word in ['summarize', 'summary', 'overview', 'gist']):
+            return 2
+        elif any(word in query_lower for word in ['compare', 'comparison', 'difference']):
+            return 3
+        else:
+            return 1  # Default to RAG
 
 # Master Intent Router Function
 def handle_query(user_query, document_ids):
-    intent = detect_intent(user_query)
+    try:
+        print(f"🎯 Detecting intent for query: '{user_query}'")
+        intent = detect_intent(user_query)
+        print(f"📊 Detected intent: {intent}")
 
-    if intent == 1:
-        # RAG-Based Query
-        return handle_rag_query(user_query, document_ids)
+        if intent == 1:
+            print("🔍 Using RAG-based query...")
+            # RAG-Based Query
+            return handle_rag_query(user_query, document_ids)
 
-    elif intent == 2:
-        # Summarization
-        return summarize_documents(user_query, document_ids)
+        elif intent == 2:
+            print("📝 Using summarization...")
+            # Summarization
+            return summarize_documents(user_query, document_ids)
 
-    elif intent == 3:
-        # Comparison
-        return compare_documents(user_query, document_ids)
+        elif intent == 3:
+            print("⚖️ Using comparison...")
+            # Comparison
+            return compare_documents(user_query, document_ids)
 
-    elif intent == 4:
-        # RAG with Source Trace
-        return handle_rag_query(user_query, document_ids, with_trace=True)
+        elif intent == 4:
+            print("🔍 Using RAG with source trace...")
+            # RAG with Source Trace
+            return handle_rag_query(user_query, document_ids, with_trace=True)
 
-    else:
-        # Fallback Error
-        return {"answer": "[Error] Couldn't determine the intent of your query."}
+        else:
+            print(f"❌ Unknown intent: {intent}")
+            # Fallback Error
+            return {"answer": "[Error] Couldn't determine the intent of your query."}
+    except Exception as e:
+        print(f"❌ Intent router error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"answer": f"I encountered an error while processing your request: {str(e)}. Please try again."}

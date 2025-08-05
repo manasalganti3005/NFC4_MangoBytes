@@ -4,6 +4,8 @@ import axios from 'axios';
 import './Chatbot.css';
 
 const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
+  console.log('🤖 Chatbot initialized with:', { documentName, documentId });
+  
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -43,13 +45,15 @@ const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
     setIsLoading(true);
 
     try {
+      console.log('📤 Sending query with document ID:', documentId);
+      
       // API call to your backend
       const response = await axios.post('http://localhost:5000/api/query', { 
         message: userMessage,
         // You can include document context or ID here
         document_ids: [documentId]
       }, {
-        timeout: 30000 // 30 second timeout
+        timeout: 60000 // 60 second timeout
       });
 
       const botReply = response.data.reply || "I'm processing your request. Could you please try rephrasing your question?";

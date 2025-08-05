@@ -2,6 +2,7 @@
 sentence-transformers==2.2.2
 torch>=1.13.0
 transformers>=4.36.0
+numpy>=1.21.0
 
 # For Text Chunking
 langchain==0.1.15

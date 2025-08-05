@@ -41,24 +41,53 @@ def upload_document():
 
     # Process into JSON format (chunks, embeddings, etc.)
     document_json = process_document(file.filename, file.content_type, raw_text)
+    
+    print(f"📄 Processing document: {document_json['filename']}")
+    print(f"🆔 Generated document ID: {document_json['document_id']}")
 
     # Store in MongoDB
-    collection.insert_one(document_json)
+    result = collection.insert_one(document_json)
+    print(f"💾 Document stored in MongoDB with ID: {result.inserted_id}")
 
-    return jsonify({'message': 'Document uploaded and processed successfully'}), 200
+    response_data = {
+        'message': 'Document uploaded and processed successfully',
+        'documentId': document_json['document_id'],
+        'filename': document_json['filename']
+    }
+    
+    print(f"📤 Sending response: {response_data}")
+    return jsonify(response_data), 200
 
 # Unified Query Endpoint
 @app.route('/api/query', methods=['POST'])
 def query_documents():
-    data = request.json
-    user_query = data['query']
-    document_ids = data['document_ids']
+    try:
+        data = request.json
+        if not data:
+            print("❌ No JSON data provided")
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
+        user_query = data.get('message') or data.get('query')  # Handle both 'message' and 'query' keys
+        if not user_query:
+            print("❌ No query or message provided")
+            return jsonify({'error': 'No query or message provided'}), 400
+            
+        document_ids = data.get('document_ids', [])
+        print(f"🔍 Processing query: '{user_query}' for documents: {document_ids}")
 
-    if not document_ids:
-        return jsonify({'error': 'No documents uploaded yet.'}), 400
+        if not document_ids:
+            print("❌ No documents uploaded yet")
+            return jsonify({'error': 'No documents uploaded yet.'}), 400
 
-    response = handle_query(user_query, document_ids)
-    return jsonify(response)
+        print("🚀 Calling handle_query...")
+        response = handle_query(user_query, document_ids)
+        print(f"✅ Query completed, response: {response}")
+        return jsonify(response)
+    except Exception as e:
+        print(f"❌ Error in query_documents: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -9,12 +9,17 @@ function App() {
   const [uploadedDocument, setUploadedDocument] = useState(null);
 
   const handleUploadSuccess = (uploadResponse) => {
+    console.log('📤 Upload response received:', uploadResponse);
+    
     // Store the uploaded document information
-    setUploadedDocument({
+    const documentInfo = {
       name: uploadResponse.filename || 'Document',
       id: uploadResponse.documentId || 'unknown',
       uploadTime: new Date().toISOString()
-    });
+    };
+    
+    console.log('📋 Setting document info:', documentInfo);
+    setUploadedDocument(documentInfo);
     
     // Navigate to chat page
     setCurrentPage('chat');
