@@ -1,12 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from pymongo import MongoClient
-from utils.text_utils import process_document
+from utils.intent_router import handle_query
 from utils.extract_text import extract_text_from_file
-from dotenv import load_dotenv
+from utils.text_utils import process_document
+from pymongo import MongoClient
 import os
+from dotenv import load_dotenv
 
-# Load .env variables
 load_dotenv()
 
 app = Flask(__name__)
@@ -46,6 +46,19 @@ def upload_document():
     collection.insert_one(document_json)
 
     return jsonify({'message': 'Document uploaded and processed successfully'}), 200
+
+# Unified Query Endpoint
+@app.route('/api/query', methods=['POST'])
+def query_documents():
+    data = request.json
+    user_query = data['query']
+    document_ids = data['document_ids']
+
+    if not document_ids:
+        return jsonify({'error': 'No documents uploaded yet.'}), 400
+
+    response = handle_query(user_query, document_ids)
+    return jsonify(response)
 
 if __name__ == '__main__':
     app.run(debug=True)
