@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import DocumentSummary from './DocumentSummary';
 import './Chatbot.css';
-import './Summary.css';
+//import './Summary.css';
 
 const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
   console.log('🤖 Chatbot initialized with:', { documentNames, documentIds });

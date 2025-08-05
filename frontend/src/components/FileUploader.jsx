@@ -98,7 +98,7 @@ const FileUploader = ({ onUploadSuccess }) => {
     }
 
     setIsUploading(true);
-    setUploadMessage('Processing your document...');
+    setUploadMessage('Processing your documents...');
     setMessageType('info');
     setUploadProgress(0);
 
@@ -170,6 +170,13 @@ const FileUploader = ({ onUploadSuccess }) => {
     const updated = [...selectedFiles];
     updated.splice(index, 1);
     setSelectedFiles(updated);
+    
+    // Clear messages when files change
+    if (updated.length === 0) {
+      setUploadMessage('');
+      setMessageType('');
+      setUploadProgress(0);
+    }
   };
 
   const resetUpload = () => {
@@ -182,109 +189,158 @@ const FileUploader = ({ onUploadSuccess }) => {
     }
   };
 
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getTotalSize = () => {
+    const total = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+    return formatFileSize(total);
+  };
+
   return (
     <div className="file-uploader-container">
-      <h1 className="main-title">Document Intelligence Hub</h1>
-      <p className="subtitle">Transform your documents into interactive conversations</p>
-      
-      <div className="upload-section">
-        <div 
-          className={`drag-drop-zone ${isDragOver ? 'drag-over' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          onClick={handleDragDropClick}
-        >
-          <div className="upload-icon"></div>
-          
-          <div className="upload-content">
-            <h2 className="upload-title">
-              {isDragOver ? 'Drop Your Document' : 'Upload Your Document'}
-            </h2>
-            <p className="upload-description">
-              {isDragOver 
-                ? 'Release to upload your file and unlock its potential' 
-                : 'Drag and drop your file here, or click below to browse and select'
-              }
-            </p>
+      <div className="main-container">
+        <h1 className="main-title">Document Intelligence Hub</h1>
+        <p className="subtitle">Transform your documents into interactive conversations</p>
+        
+        <div className="upload-section">
+          <div 
+            className={`drag-drop-zone ${isDragOver ? 'drag-over' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={handleDragDropClick}
+          >
+            <div className="upload-icon"></div>
+            
+            <div className="upload-content">
+              <h2 className="upload-title">
+                {isDragOver ? 'Drop Your Documents' : 'Upload Your Documents'}
+              </h2>
+              <p className="upload-description">
+                {isDragOver 
+                  ? 'Release to upload your files and unlock their potential' 
+                  : 'Drag and drop your files here, or click below to browse and select'
+                }
+              </p>
 
-            <div className="file-input-wrapper">
-              <input 
-                ref={fileInputRef}
-                type="file" 
-                multiple
-                id="file-input"
-                accept=".pdf,.docx,.txt" 
-                onChange={handleFileChange}
-                disabled={isUploading}
-              />
-              <label 
-                htmlFor="file-input" 
-                className="browse-button"
-              >
-                <span>📁</span>
-                {selectedFiles.length > 0 ? 'Add More Files' : 'Browse Files'}
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="supported-formats">
-          Supported formats: PDF, DOCX, TXT files (10MB max total)
-        </div>
-
-        {selectedFiles.length > 0 && (
-          <div className="selected-files-container">
-            {selectedFiles.map((file, idx) => (
-              <div key={idx} className="selected-file">
-                <div className="file-icon">📄</div>
-                <div className="file-info">
-                  <div className="file-name">{file.name}</div>
-                  <div className="file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
-                </div>
-                <button 
-                  className="remove-file-btn" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(idx);
-                  }}
+              <div className="file-input-wrapper">
+                <input 
+                  ref={fileInputRef}
+                  type="file" 
+                  multiple
+                  id="file-input"
+                  accept=".pdf,.docx,.txt" 
+                  onChange={handleFileChange}
                   disabled={isUploading}
-                  title="Remove file"
+                />
+                <label 
+                  htmlFor="file-input" 
+                  className="browse-button"
                 >
-                  ✕
-                </button>
+                  <span>📁</span>
+                  {selectedFiles.length > 0 ? 'Add More Files' : 'Browse Files'}
+                </label>
               </div>
-            ))}
-          </div>
-        )}
-
-        {isUploading && uploadProgress > 0 && (
-          <div className="progress-container">
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
             </div>
           </div>
-        )}
 
-        <button 
-          className="upload-button" 
-          onClick={handleUpload}
-          disabled={selectedFiles.length === 0 || isUploading}
-        >
-          {isUploading && <span className="loading-spinner"></span>}
-          {isUploading 
-            ? 'Processing Documents...' 
-            : `Upload ${selectedFiles.length} File${selectedFiles.length !== 1 ? 's' : ''} & Start Chatting`}
-        </button>
-
-        {uploadMessage && (
-          <div className={`upload-message ${messageType}`}>
-            {uploadMessage}
+          <div className="supported-formats">
+            Supported formats: PDF, DOCX, TXT files (10MB max total)
           </div>
-        )}
+
+          <div className="content-row">
+            <div className="selected-files-container">
+              <div className="files-header">
+                Selected Files ({selectedFiles.length})
+              </div>
+              
+              {selectedFiles.length > 0 ? (
+                <>
+                  {selectedFiles.map((file, idx) => (
+                    <div key={idx} className="selected-file">
+                      <div className="file-icon">📄</div>
+                      <div className="file-info">
+                        <div className="file-name">{file.name}</div>
+                        <div className="file-size">{formatFileSize(file.size)}</div>
+                      </div>
+                      <button 
+                        className="remove-file-btn" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFile(idx);
+                        }}
+                        disabled={isUploading}
+                        title="Remove file"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <div className="total-size">
+                    Total size: {getTotalSize()}
+                  </div>
+                </>
+              ) : (
+                <div className="empty-files-message">
+                  No files selected yet. Choose files to get started!
+                </div>
+              )}
+            </div>
+
+            <div className="upload-controls">
+              {isUploading && uploadProgress > 0 && (
+                <div className="progress-container">
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill" 
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
+              <button 
+                className="upload-button" 
+                onClick={handleUpload}
+                disabled={selectedFiles.length === 0 || isUploading}
+              >
+                {isUploading && <span className="loading-spinner"></span>}
+                {isUploading 
+                  ? 'Processing Documents...' 
+                  : `Upload ${selectedFiles.length} File${selectedFiles.length !== 1 ? 's' : ''} & Start Chatting`}
+              </button>
+
+              {selectedFiles.length > 0 && !isUploading && (
+                <button 
+                  className="browse-button"
+                  onClick={resetUpload}
+                  style={{ 
+                    background: 'rgba(239, 68, 68, 0.2)', 
+                    borderColor: 'rgba(239, 68, 68, 0.4)',
+                    fontSize: '0.9rem',
+                    padding: '0.8rem 1.5rem'
+                  }}
+                >
+                  <span>🗑️</span>
+                  Clear All Files
+                </button>
+              )}
+            </div>
+          </div>
+
+          {uploadMessage && (
+            <div className={`upload-message ${messageType}`}>
+              {uploadMessage}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
