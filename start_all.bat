@@ -1,7 +1,7 @@
 @echo off
 
-echo Starting Ollama (phi3 model)...
-start cmd /k "ollama run phi3"
+echo Starting Ollama (TinyLLaMA model)...
+start cmd /k "ollama run tinyllama"
 
 timeout /t 5
 

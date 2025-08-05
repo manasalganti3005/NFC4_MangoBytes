@@ -10,12 +10,15 @@ You are an intelligent document assistant. Based on the user's query below, deci
 
 1. RAG-Based Query:
    - The user is asking a specific question and wants an answer based on the uploaded document(s).
+   - Examples: "What is X?", "How does Y work?", "Explain Z"
 
 2. Summarization:
    - The user is asking for a summary, overview, or gist of the document(s).
+   - Examples: "Summarize", "Main points", "Key points", "Overview", "Summary"
 
 3. Comparison:
    - The user wants a comparison or analysis between two or more documents.
+   - Examples: "Compare", "Difference", "Versus", "Contrast"
 
 4. RAG + Source Trace:
    - The user is asking a question and wants not just the answer, but also where in the document the answer came from (line, chunk, or filename).
@@ -23,7 +26,7 @@ You are an intelligent document assistant. Based on the user's query below, deci
 User Query:
 \"\"\"{user_query}\"\"\"
 
-Which task (1, 2, 3, or 4) should be activated? Only respond with a number.
+Which task (1, 2, 3, or 4) should be activated? Respond ONLY with a single number (1, 2, 3, or 4).
 """
 
 # Intent Detection using Ollama
@@ -33,29 +36,42 @@ def detect_intent(user_query):
         
         response = requests.post(
             "http://localhost:11434/api/generate",
-                            json={
-                    "model": "tinyllama", 
-                    "prompt": prompt, 
-                    "stream": False,
-                    "options": {
-                        "num_predict": 10,   # Very short response for intent detection
-                        "temperature": 0.0,   # Deterministic for intent detection
-                        "top_p": 0.1,         # Very fast sampling
-                        "top_k": 1            # Very fast sampling
-                    }
-                },
+            json={
+                "model": "tinyllama", 
+                "prompt": prompt, 
+                "stream": False,
+                "options": {
+                    "num_predict": 5,    # Very short response for intent detection
+                    "temperature": 0.0,   # Deterministic for intent detection
+                    "top_p": 0.1,         # Very fast sampling
+                    "top_k": 1            # Very fast sampling
+                }
+            },
             timeout=30  # 30 second timeout for intent detection
         )
         
         if response.status_code == 200:
             try:
-                intent_number = int(response.json()['response'].strip())
-                return intent_number
-            except Exception:
-                return 1  # Default to RAG if detection fails
+                response_text = response.json()['response'].strip()
+                print(f"🤖 Ollama intent response: '{response_text}'")
+                
+                # Try to extract just the number from the response
+                import re
+                number_match = re.search(r'\b([1-4])\b', response_text)
+                if number_match:
+                    intent_number = int(number_match.group(1))
+                    print(f"✅ Extracted intent number: {intent_number}")
+                    return intent_number
+                else:
+                    print(f"❌ No valid intent number found in response")
+                    return detect_intent_keywords(user_query)
+                    
+            except Exception as e:
+                print(f"❌ Failed to parse Ollama intent response: {str(e)}")
+                return detect_intent_keywords(user_query)
         else:
             print(f"Ollama intent detection failed with status {response.status_code}")
-            return 1  # Default to RAG
+            return detect_intent_keywords(user_query)
             
     except requests.exceptions.Timeout:
         print("⏰ Ollama intent detection timeout, using keyword fallback...")
@@ -67,12 +83,22 @@ def detect_intent(user_query):
 def detect_intent_keywords(user_query):
     """Simple keyword-based intent detection fallback"""
     query_lower = user_query.lower()
-    if any(word in query_lower for word in ['summarize', 'summary', 'overview', 'gist']):
+    
+    # Check for summarization keywords
+    summary_keywords = ['summarize', 'summary', 'overview', 'gist', 'main points', 'key points', 'summarise', 'summaries']
+    if any(keyword in query_lower for keyword in summary_keywords):
+        print(f"🎯 Keyword detection: Found summary keyword in '{query_lower}'")
         return 2
-    elif any(word in query_lower for word in ['compare', 'comparison', 'difference']):
+    
+    # Check for comparison keywords
+    comparison_keywords = ['compare', 'comparison', 'difference', 'versus', 'vs', 'contrast']
+    if any(keyword in query_lower for keyword in comparison_keywords):
+        print(f"🎯 Keyword detection: Found comparison keyword in '{query_lower}'")
         return 3
-    else:
-        return 1  # Default to RAG
+    
+    # Default to RAG
+    print(f"🎯 Keyword detection: No specific keywords found, defaulting to RAG")
+    return 1
 
 # Master Intent Router Function
 def handle_query(user_query, document_ids):

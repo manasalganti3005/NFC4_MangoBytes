@@ -32,6 +32,17 @@ def get_similar_chunks(query, document_ids, top_k=3):
         if not matching_docs:
             return []
         
+        # Calculate dynamic threshold based on query length and complexity
+        query_words = len(query.split())
+        if query_words < 5:
+            similarity_threshold = 0.15  # Higher threshold for short queries
+        elif query_words < 10:
+            similarity_threshold = 0.12  # Medium threshold for medium queries
+        else:
+            similarity_threshold = 0.08  # Lower threshold for complex queries
+        
+        print(f"🎯 Using similarity threshold: {similarity_threshold} (query length: {query_words} words)")
+        
         # Flatten all chunks from matching documents
         all_chunks = []
         total_chunks = 0
@@ -65,15 +76,34 @@ def get_similar_chunks(query, document_ids, top_k=3):
                     
                     if chunk_norm > 0 and query_norm > 0:
                         similarity = np.dot(chunk_emb, query_emb) / (chunk_norm * query_norm)
-                        similarities.append((similarity, chunk))
+                        # Only include chunks with meaningful similarity (above threshold)
+                        if similarity > similarity_threshold:
+                            similarities.append((similarity, chunk))
                 except Exception as e:
                     print(f"Error calculating similarity for chunk: {str(e)}")
                     continue
+        
+        print(f"🔍 Found {len(similarities)} chunks with meaningful similarity (threshold: {similarity_threshold:.3f})")
         
         # Sort by similarity and get top_k
         similarities.sort(key=lambda x: x[0], reverse=True)
         top_chunks = similarities[:top_k]
         
+        # If no chunks meet the threshold, try with a lower threshold
+        if not top_chunks and len(similarities) > 0:
+            print("⚠️ No chunks met the initial threshold, trying with lower threshold...")
+            lower_threshold = similarity_threshold * 0.5
+            top_chunks = [(sim, chunk) for sim, chunk in similarities if sim > lower_threshold][:top_k]
+            print(f"🔍 Found {len(top_chunks)} chunks with lower threshold ({lower_threshold:.3f})")
+        
+        # Log the similarity scores of selected chunks
+        if top_chunks:
+            print(f"📊 Top {len(top_chunks)} chunk similarities:")
+            for i, (similarity, chunk) in enumerate(top_chunks):
+                print(f"  {i+1}. Similarity: {similarity:.3f} - Preview: {chunk['text'][:50]}...")
+        else:
+            print("⚠️ No chunks met any similarity threshold")
+            
         # Format results to match expected structure
         results = []
         for similarity, chunk in top_chunks:
@@ -127,7 +157,7 @@ def handle_rag_query(user_query, document_ids, with_trace=False):
         
         context = "\n\n".join([r["chunk"] for r in results])
 
-        prompt = f"""Answer the question based on the context below.
+        prompt = f"""Answer the question based ONLY on the context provided below. If the context doesn't contain information to answer the question, say "The provided context doesn't contain information to answer this question."
 
 Context:
 {context}
@@ -135,7 +165,7 @@ Context:
 Question:
 {user_query}
 
-Answer:"""
+Answer (based only on the context above):"""
 
         try:
             from utils.fast_ollama import fast_generate
@@ -150,17 +180,17 @@ Answer:"""
                 # Fallback to standard generation
                 response = requests.post(
                     "http://localhost:11434/api/generate",
-                                    json={
-                    "model": "tinyllama", 
-                    "prompt": prompt, 
-                    "stream": False,
-                    "options": {
-                        "num_predict": 200,
-                        "temperature": 0.3,
-                        "top_p": 0.9,
-                        "top_k": 40
-                    }
-                },
+                    json={
+                        "model": "tinyllama", 
+                        "prompt": prompt, 
+                        "stream": False,
+                        "options": {
+                            "num_predict": 200,
+                            "temperature": 0.3,
+                            "top_p": 0.9,
+                            "top_k": 40
+                        }
+                    },
                     timeout=120
                 )
                 
