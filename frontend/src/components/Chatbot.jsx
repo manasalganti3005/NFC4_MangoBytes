@@ -1,10 +1,12 @@
 // src/components/Chatbot.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import DocumentSummary from './DocumentSummary';
 import './Chatbot.css';
+import './Summary.css';
 
-const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
-  console.log('🤖 Chatbot initialized with:', { documentName, documentId });
+const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
+  console.log('🤖 Chatbot initialized with:', { documentNames, documentIds });
   
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -45,13 +47,13 @@ const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
     setIsLoading(true);
 
     try {
-      console.log('📤 Sending query with document ID:', documentId);
+      console.log('📤 Sending query with document IDs:', documentIds);
       
       // API call to your backend
       const response = await axios.post('http://localhost:5000/api/query', { 
         message: userMessage,
-        // You can include document context or ID here
-        document_ids: [documentId]
+        // Send all document IDs for multi-document analysis
+        document_ids: documentIds || []
       }, {
         timeout: 180000 // 180 second timeout for longer summaries
       });
@@ -98,6 +100,31 @@ const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
     sendMessage(suggestion);
   };
 
+  const formatSummaryText = (text) => {
+    // Check if this looks like a summary (has markdown headers)
+    if (text.includes('# 📋') || text.includes('## 📊') || text.includes('## 📝')) {
+      return (
+        <div className="summary-container">
+          <div dangerouslySetInnerHTML={{ 
+            __html: text
+              .replace(/# 📋 DOCUMENT SUMMARY/g, '<h1 class="summary-title">📋 DOCUMENT SUMMARY</h1>')
+              .replace(/## 📊 OVERALL SUMMARY/g, '<h2 class="summary-section-title">📊 OVERALL SUMMARY</h2>')
+              .replace(/## 📝 SECTION-WISE BREAKDOWN/g, '<h2 class="summary-section-title">📝 SECTION-WISE BREAKDOWN</h2>')
+              .replace(/## 🔍 KEY FINDINGS & HIGHLIGHTS/g, '<h2 class="summary-section-title">🔍 KEY FINDINGS & HIGHLIGHTS</h2>')
+              .replace(/## 🎯 MAIN TOPICS & THEMES/g, '<h2 class="summary-section-title">🎯 MAIN TOPICS & THEMES</h2>')
+              .replace(/## 💡 RECOMMENDATIONS & INSIGHTS/g, '<h2 class="summary-section-title">💡 RECOMMENDATIONS & INSIGHTS</h2>')
+              .replace(/## 📈 KEY STATISTICS/g, '<h2 class="summary-section-title">📈 KEY STATISTICS</h2>')
+              .replace(/\*\*(.*?)\*\*/g, '<span class="summary-bold">$1</span>')
+              .replace(/\n• /g, '<div class="summary-bullet">')
+              .replace(/\n\n/g, '</div><div class="summary-bullet">')
+              .replace(/\n### \*\*(.*?)\*\*/g, '<h3 class="summary-subsection">$1</h3>')
+          }} />
+        </div>
+      );
+    }
+    return text;
+  };
+
   const formatTime = (timestamp) => {
     return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -111,98 +138,116 @@ const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
             <span>←</span>
             New Document
           </button>
-          <h1 className="chat-title">Document Chat</h1>
+          <h1 className="chat-title">Document Intelligence Hub</h1>
         </div>
-        {documentName && (
+        {documentNames && documentNames.length > 0 && (
           <div className="document-info">
-            {documentName}
+            {documentNames.length === 1 ? (
+              documentNames[0]
+            ) : (
+              <div className="multiple-docs">
+                <span>📚 {documentNames.length} Documents</span>
+                <div className="doc-list">
+                  {documentNames.map((name, index) => (
+                    <span key={index} className="doc-name">{name}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Main chat area */}
-      <div className="chatbot-container">
-        <div className="chatbox" ref={chatboxRef}>
-          {messages.length === 0 ? (
-            <div className="empty-chat-state">
-              <div className="empty-icon">🤖</div>
-              <div className="empty-title">Ready to analyze your document!</div>
-              <div className="empty-description">
-                Ask me anything about your document. I can summarize, extract key information, answer questions, and more.
-              </div>
-              <div className="suggestions-container">
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    className="suggestion-chip"
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    disabled={isLoading}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`message ${msg.sender}`}>
-                  <div className="message-content">
-                    {msg.text}
-                  </div>
-                  <div className="message-time" style={{
-                    fontSize: '0.75rem',
-                    opacity: 0.7,
-                    marginTop: '0.5rem'
-                  }}>
-                    {formatTime(msg.timestamp)}
-                  </div>
+      {/* Main layout with two panels */}
+      <div className="chatbot-main-container">
+        {/* Left panel - Chatbot */}
+        <div className="chatbot-container">
+          <div className="chatbox" ref={chatboxRef}>
+            {messages.length === 0 ? (
+              <div className="empty-chat-state">
+                <div className="empty-icon">🤖</div>
+                <div className="empty-title">Ready to analyze your documents!</div>
+                <div className="empty-description">
+                  Ask me anything about your documents. I can summarize, extract key information, answer questions, and provide detailed analysis.
                 </div>
-              ))}
-              
-              {isLoading && (
-                <div className="typing-message">
-                  <div className="typing-indicator">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                  </div>
-                  <span>Analyzing...</span>
+                <div className="suggestions-container">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      className="suggestion-chip"
+                      onClick={() => handleSuggestionClick(suggestion)}
+                      disabled={isLoading}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Input area */}
-        <div className="input-area">
-          <div className="input-wrapper">
-            <div className="input-icon">💬</div>
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Ask something about your document..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              maxLength={500}
-            />
-          </div>
-          <button 
-            className="send-button" 
-            onClick={() => sendMessage()}
-            disabled={isLoading || input.trim() === ''}
-          >
-            {isLoading ? (
-              <div className="button-spinner"></div>
+              </div>
             ) : (
               <>
-                <span>Send</span>
-                <span>➤</span>
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`message ${msg.sender}`}>
+                    <div className="message-content">
+                      {msg.sender === 'bot' ? formatSummaryText(msg.text) : msg.text}
+                    </div>
+                    <div className="message-time">
+                      {formatTime(msg.timestamp)}
+                    </div>
+                  </div>
+                ))}
+                
+                {isLoading && (
+                  <div className="typing-message">
+                    <div className="typing-indicator">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                    <span>Analyzing...</span>
+                  </div>
+                )}
               </>
             )}
-          </button>
+          </div>
+
+          {/* Input area */}
+          <div className="input-area">
+            <div className="input-wrapper">
+              <div className="input-icon">💬</div>
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder="Ask something about your documents..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+                maxLength={500}
+              />
+            </div>
+            <button 
+              className="send-button" 
+              onClick={() => sendMessage()}
+              disabled={isLoading || input.trim() === ''}
+            >
+              {isLoading ? (
+                <div className="button-spinner"></div>
+              ) : (
+                <>
+                  <span>Send</span>
+                  <span>➤</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Right panel - Document Summary */}
+        <div className="document-summary-panel">
+          <DocumentSummary 
+            documentIds={documentIds} 
+            documentNames={documentNames} 
+          />
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import requests
 import numpy as np
+from .groq_api import groq_generate, test_groq_connection
 
 load_dotenv()
 
@@ -137,52 +138,71 @@ def handle_rag_query(user_query, document_ids, with_trace=False):
                 "answer": f"I couldn't find any relevant information in the uploaded documents to answer: '{user_query}'. Please try rephrasing your question or ask about a different topic."
             }
         
-        context = "\n\n".join([r["chunk"] for r in results])
+        # Group chunks by document for better context
+        chunks_by_doc = {}
+        doc_names = {}
+        
+        # Get document names from MongoDB
+        for doc_id in document_ids:
+            doc = collection.find_one({"document_id": doc_id})
+            if doc:
+                doc_names[doc_id] = doc.get("filename", f"Document {doc_id}")
+        
+        for r in results:
+            doc_id = r.get("document_id", "unknown")
+            if doc_id not in chunks_by_doc:
+                chunks_by_doc[doc_id] = []
+            chunks_by_doc[doc_id].append(r["chunk"])
+        
+        # Create structured context with document separation
+        context_parts = []
+        for doc_id, chunks in chunks_by_doc.items():
+            doc_name = doc_names.get(doc_id, f"Document {doc_id}")
+            doc_context = f"\n--- Document: {doc_name} ---\n"
+            doc_context += "\n".join(chunks)
+            context_parts.append(doc_context)
+        
+        context = "\n\n".join(context_parts)
 
-        prompt = f"""Answer the question based ONLY on the context provided below. If the context doesn't contain information to answer the question, say "The provided context doesn't contain information to answer this question."
+        # Enhanced prompt for multi-document analysis
+        if len(chunks_by_doc) > 1:
+            prompt = f"""You are an expert multi-document analyst. You are comparing {len(chunks_by_doc)} documents.
 
-Context:
+IMPORTANT INSTRUCTIONS:
+- Analyze and compare information from ALL documents
+- Highlight similarities, differences, and contradictions between documents
+- Provide comprehensive answers that synthesize information across documents
+- Explicitly mention which document(s) your information comes from
+- If the context doesn't contain information to answer the question, say "The provided context doesn't contain information to answer this question."
+- For comparisons, structure your response to clearly show differences and similarities
+
+Context from multiple documents:
 {context}
 
-Question:
-{user_query}
+User Question: {user_query}
 
-Answer (based only on the context above):"""
+Please provide a comprehensive analysis that compares and synthesizes information from all relevant documents:"""
+        else:
+            prompt = f"""You are an expert document analyst. Answer the user's question based ONLY on the context provided below.
+
+IMPORTANT INSTRUCTIONS:
+- Analyze information from the provided document
+- Provide comprehensive answers based on the context
+- If the context doesn't contain information to answer the question, say "The provided context doesn't contain information to answer this question."
+
+Context from document:
+{context}
+
+User Question: {user_query}
+
+Please provide a comprehensive answer based on the document:"""
 
         try:
-            from utils.fast_ollama import fast_generate
-            
-            # Try fast generation first
-            answer = fast_generate(prompt, max_tokens=150, timeout=60)
+            print("🚀 Starting Groq API RAG generation...")
+            answer = groq_generate(prompt, max_tokens=300, temperature=0.3, timeout=90)
             
             if answer:
-                print("✅ Fast generation successful")
-            else:
-                print("⏰ Fast generation failed, trying standard generation...")
-                # Fallback to standard generation
-                response = requests.post(
-                    "http://localhost:11434/api/generate",
-                    json={
-                        "model": "tinyllama", 
-                        "prompt": prompt, 
-                        "stream": False,
-                        "options": {
-                            "num_predict": 200,
-                            "temperature": 0.3,
-                            "top_p": 0.9,
-                            "top_k": 40
-                        }
-                    },
-                    timeout=120
-                )
-                
-                if response.status_code == 200:
-                    answer = response.json().get('response', 'No response generated')
-                else:
-                    answer = None
-            
-            # Return the answer
-            if answer:
+                print("✅ Groq API RAG generation successful")
                 if with_trace:
                     sources = ", ".join([r["filename"] for r in results])
                     return {
@@ -194,20 +214,12 @@ Answer (based only on the context above):"""
                         "answer": answer
                     }
             else:
-                print(f"❌ Ollama generation failed, using simple fallback...")
+                print(f"❌ Groq API generation failed, using simple fallback...")
                 from utils.simple_rag import handle_simple_rag_query
                 return handle_simple_rag_query(user_query, document_ids)
                 
-        except requests.exceptions.Timeout:
-            print("⏰ Ollama timeout, using simple fallback...")
-            from utils.simple_rag import handle_simple_rag_query
-            return handle_simple_rag_query(user_query, document_ids)
-        except requests.exceptions.ConnectionError:
-            print("🔌 Ollama connection error, using simple fallback...")
-            from utils.simple_rag import handle_simple_rag_query
-            return handle_simple_rag_query(user_query, document_ids)
         except Exception as e:
-            print(f"❌ Ollama API error: {str(e)}, using simple fallback...")
+            print(f"❌ Groq API error: {str(e)}, using simple fallback...")
             from utils.simple_rag import handle_simple_rag_query
             return handle_simple_rag_query(user_query, document_ids)
             

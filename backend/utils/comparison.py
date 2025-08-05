@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import requests
+from .groq_api import groq_generate, test_groq_connection
 
 load_dotenv()
 
@@ -28,7 +29,7 @@ def compare_documents(user_query, document_ids):
             content = doc.get('raw_text', '')[:1500]  # Limit content to avoid timeouts
             doc_contents.append(f"Document: {doc['filename']}\nContent: {content}\n")
 
-        # Use Ollama for comparison
+        # Use Groq API for comparison
         prompt = f"""Please compare the following documents based on the user's query: "{user_query}"
 
 Documents:
@@ -37,23 +38,14 @@ Documents:
 Please provide a detailed comparison highlighting similarities, differences, and key insights."""
 
         try:
-            response = requests.post(
-                "http://localhost:11434/api/generate",
-                json={"model": "tinyllama", "prompt": prompt, "stream": False},
-                timeout=120  # 120 second timeout for comparison
-            )
+            print("🚀 Starting Groq API comparison...")
+            comparison_result = groq_generate(prompt, max_tokens=600, temperature=0.3, timeout=120)
             
-            if response.status_code == 200:
-                comparison_result = response.json().get('response', 'Comparison generation failed.')
-            else:
+            if not comparison_result:
                 comparison_result = f"Comparing documents: {filenames[0]} and {filenames[1]} based on query: '{user_query}'."
                 
-        except requests.exceptions.Timeout:
-            comparison_result = "Document comparison timed out. The documents may be too large for comparison."
-        except requests.exceptions.ConnectionError:
-            comparison_result = "Unable to perform comparison due to connection issues. Please check if Ollama is running."
         except Exception as e:
-            print(f"Comparison error: {str(e)}")
+            print(f"❌ Groq API comparison error: {str(e)}")
             comparison_result = f"Comparing documents: {filenames[0]} and {filenames[1]} based on query: '{user_query}'."
 
         return { "answer": comparison_result }

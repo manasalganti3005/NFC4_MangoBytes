@@ -4,7 +4,7 @@ import axios from 'axios';
 import './FileUploader.css';
 
 const FileUploader = ({ onUploadSuccess }) => {
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadMessage, setUploadMessage] = useState('');
   const [messageType, setMessageType] = useState('');
   const [isUploading, setIsUploading] = useState(false);
@@ -12,51 +12,52 @@ const FileUploader = ({ onUploadSuccess }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef(null);
 
-  const allowedTypes = ['.pdf', '.docx', '.txt'];
-  const maxFileSize = 10 * 1024 * 1024; // 10MB
+  const validateFiles = (files) => {
+    const maxTotalSize = 10 * 1024 * 1024; // 10MB total
+    const validExtensions = ['.pdf', '.docx', '.txt'];
+    
+    if (!files || files.length === 0) {
+      return { isValid: false, message: 'No files selected' };
+    }
 
-  const validateFile = (file) => {
-    if (!file) return { isValid: false, message: 'No file selected' };
-    
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
-    
-    if (!allowedTypes.includes(fileExtension)) {
-      return { 
-        isValid: false, 
-        message: 'Invalid file type. Please select a PDF, DOCX, or TXT file.' 
-      };
+    // Check total size
+    const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > maxTotalSize) {
+      return { isValid: false, message: 'Total file size exceeds 10MB.' };
     }
-    
-    if (file.size > maxFileSize) {
-      return { 
-        isValid: false, 
-        message: 'File size too large. Please select a file smaller than 10MB.' 
-      };
+
+    // Check each file's type
+    for (let file of files) {
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      if (!validExtensions.includes(ext)) {
+        return { isValid: false, message: `Invalid file type: ${file.name}. Please select PDF, DOCX, or TXT files only.` };
+      }
     }
-    
-    return { isValid: true, message: '' };
+
+    return { isValid: true };
   };
 
-  const handleFileSelect = (file) => {
-    const validation = validateFile(file);
+  const handleFileSelect = (newFiles) => {
+    if (!newFiles || newFiles.length === 0) return;
     
+    const allFiles = [...selectedFiles, ...newFiles];
+    const validation = validateFiles(allFiles);
+
     if (!validation.isValid) {
       setUploadMessage(validation.message);
       setMessageType('error');
-      setSelectedFile(null);
       return;
     }
-    
-    setSelectedFile(file);
+
+    setSelectedFiles(allFiles);
     setUploadMessage('');
     setMessageType('');
     setUploadProgress(0);
   };
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      handleFileSelect(file);
+    if (e.target.files.length) {
+      handleFileSelect(Array.from(e.target.files));
     }
   };
 
@@ -79,7 +80,7 @@ const FileUploader = ({ onUploadSuccess }) => {
     
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      handleFileSelect(files[0]);
+      handleFileSelect(Array.from(files));
     }
   };
 
@@ -90,8 +91,8 @@ const FileUploader = ({ onUploadSuccess }) => {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) {
-      setUploadMessage('Please select a file first');
+    if (selectedFiles.length === 0) {
+      setUploadMessage('Please select at least one file');
       setMessageType('error');
       return;
     }
@@ -102,7 +103,12 @@ const FileUploader = ({ onUploadSuccess }) => {
     setUploadProgress(0);
 
     const formData = new FormData();
-    formData.append('file', selectedFile);
+    selectedFiles.forEach((file, index) => {
+      formData.append(`file${index}`, file);
+      console.log(`📤 Adding file${index}: ${file.name} (${file.size} bytes)`);
+    });
+
+    console.log(`📤 Sending ${selectedFiles.length} file(s) to backend`);
 
     try {
       // Simulate progress for better UX
@@ -138,12 +144,15 @@ const FileUploader = ({ onUploadSuccess }) => {
       
     } catch (error) {
       console.error('Upload failed:', error);
+      console.error('Error response:', error.response?.data);
       setUploadProgress(0);
       
       let errorMessage = 'Upload failed. Please try again.';
       
       if (error.code === 'ECONNABORTED') {
         errorMessage = 'Upload timeout. Please check your connection and try again.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
@@ -157,8 +166,14 @@ const FileUploader = ({ onUploadSuccess }) => {
     }
   };
 
+  const removeFile = (index) => {
+    const updated = [...selectedFiles];
+    updated.splice(index, 1);
+    setSelectedFiles(updated);
+  };
+
   const resetUpload = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setUploadMessage('');
     setMessageType('');
     setUploadProgress(0);
@@ -197,6 +212,7 @@ const FileUploader = ({ onUploadSuccess }) => {
               <input 
                 ref={fileInputRef}
                 type="file" 
+                multiple
                 id="file-input"
                 accept=".pdf,.docx,.txt" 
                 onChange={handleFileChange}
@@ -207,35 +223,38 @@ const FileUploader = ({ onUploadSuccess }) => {
                 className="browse-button"
               >
                 <span>📁</span>
-                {selectedFile ? 'Change Document' : 'Browse Files'}
+                {selectedFiles.length > 0 ? 'Add More Files' : 'Browse Files'}
               </label>
             </div>
           </div>
         </div>
 
         <div className="supported-formats">
-          Supported formats: PDF, DOCX, TXT files up to 10MB
+          Supported formats: PDF, DOCX, TXT files (10MB max total)
         </div>
 
-        {selectedFile && (
-          <div className="selected-file-display">
-            <div className="file-icon">✨</div>
-            <div className="file-info">
-              <div className="file-name">{selectedFile.name}</div>
-              <div className="file-size">
-                {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+        {selectedFiles.length > 0 && (
+          <div className="selected-files-container">
+            {selectedFiles.map((file, idx) => (
+              <div key={idx} className="selected-file">
+                <div className="file-icon">📄</div>
+                <div className="file-info">
+                  <div className="file-name">{file.name}</div>
+                  <div className="file-size">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                </div>
+                <button 
+                  className="remove-file-btn" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFile(idx);
+                  }}
+                  disabled={isUploading}
+                  title="Remove file"
+                >
+                  ✕
+                </button>
               </div>
-            </div>
-            <button 
-              className="remove-file-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                resetUpload();
-              }}
-              title="Remove file"
-            >
-              ✕
-            </button>
+            ))}
           </div>
         )}
 
@@ -253,10 +272,12 @@ const FileUploader = ({ onUploadSuccess }) => {
         <button 
           className="upload-button" 
           onClick={handleUpload}
-          disabled={!selectedFile || isUploading}
+          disabled={selectedFiles.length === 0 || isUploading}
         >
           {isUploading && <span className="loading-spinner"></span>}
-          {isUploading ? 'Processing Document...' : 'Upload & Start Chatting'}
+          {isUploading 
+            ? 'Processing Documents...' 
+            : `Upload ${selectedFiles.length} File${selectedFiles.length !== 1 ? 's' : ''} & Start Chatting`}
         </button>
 
         {uploadMessage && (

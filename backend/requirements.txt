@@ -17,5 +17,9 @@ nltk==3.8.1
 # MongoDB Driver (optional, for later DB interactions)
 pymongo==4.5.0
 
+# For API calls
+requests==2.31.0
+
+# For environment variables
 python-dotenv==1.0.1
 psutil>=5.8.0

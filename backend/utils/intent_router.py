@@ -1,6 +1,7 @@
 from utils.rag_pipeline import handle_rag_query
 from utils.summarizer import summarize_documents
 from utils.comparison import compare_documents
+from utils.groq_api import groq_fast_generate, test_groq_connection
 import requests
 
 # Intent Routing Prompt
@@ -29,55 +30,33 @@ User Query:
 Which task (1, 2, 3, or 4) should be activated? Respond ONLY with a single number (1, 2, 3, or 4).
 """
 
-# Intent Detection using Ollama
+# Intent Detection using Groq API
 def detect_intent(user_query):
     try:
         prompt = route_query_prompt(user_query)
         
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": "tinyllama", 
-                "prompt": prompt, 
-                "stream": False,
-                "options": {
-                    "num_predict": 5,    # Very short response for intent detection
-                    "temperature": 0.0,   # Deterministic for intent detection
-                    "top_p": 0.1,         # Very fast sampling
-                    "top_k": 1            # Very fast sampling
-                }
-            },
-            timeout=30  # 30 second timeout for intent detection
-        )
+        # Try Groq API first
+        response_text = groq_fast_generate(prompt, max_tokens=10, temperature=0.0, timeout=30)
         
-        if response.status_code == 200:
-            try:
-                response_text = response.json()['response'].strip()
-                print(f"🤖 Ollama intent response: '{response_text}'")
-                
-                # Try to extract just the number from the response
-                import re
-                number_match = re.search(r'\b([1-4])\b', response_text)
-                if number_match:
-                    intent_number = int(number_match.group(1))
-                    print(f"✅ Extracted intent number: {intent_number}")
-                    return intent_number
-                else:
-                    print(f"❌ No valid intent number found in response")
-                    return detect_intent_keywords(user_query)
-                    
-            except Exception as e:
-                print(f"❌ Failed to parse Ollama intent response: {str(e)}")
+        if response_text:
+            print(f"🤖 Groq API intent response: '{response_text}'")
+            
+            # Try to extract just the number from the response
+            import re
+            number_match = re.search(r'\b([1-4])\b', response_text)
+            if number_match:
+                intent_number = int(number_match.group(1))
+                print(f"✅ Extracted intent number: {intent_number}")
+                return intent_number
+            else:
+                print(f"❌ No valid intent number found in response")
                 return detect_intent_keywords(user_query)
         else:
-            print(f"Ollama intent detection failed with status {response.status_code}")
+            print("❌ Groq API intent detection failed, using keyword fallback...")
             return detect_intent_keywords(user_query)
             
-    except requests.exceptions.Timeout:
-        print("⏰ Ollama intent detection timeout, using keyword fallback...")
-        return detect_intent_keywords(user_query)
     except Exception as e:
-        print(f"Ollama intent detection failed: {str(e)}")
+        print(f"Groq API intent detection failed: {str(e)}")
         return detect_intent_keywords(user_query)
 
 def detect_intent_keywords(user_query):
