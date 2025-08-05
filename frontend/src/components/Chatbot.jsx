@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import './Chatbot.css';
 
-const Chatbot = ({ documentName, onBackToUpload }) => {
+const Chatbot = ({ documentName, documentId, onBackToUpload }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,10 +44,10 @@ const Chatbot = ({ documentName, onBackToUpload }) => {
 
     try {
       // API call to your backend
-      const response = await axios.post('http://localhost:5000/api/chat', { 
+      const response = await axios.post('http://localhost:5000/api/query', { 
         message: userMessage,
         // You can include document context or ID here
-        documentId: documentName 
+        document_ids: [documentId]
       }, {
         timeout: 30000 // 30 second timeout
       });
