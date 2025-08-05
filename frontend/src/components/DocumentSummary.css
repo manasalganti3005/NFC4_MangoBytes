@@ -186,6 +186,7 @@
   animation: slideDown 0.4s ease-out;
   max-height: 500px;
   overflow-y: auto;
+  color: #1e40af; /* Blue text color for better visibility */
 }
 
 .summary-content::-webkit-scrollbar {
@@ -342,11 +343,11 @@
 /* Enhanced summary formatting within content */
 .summary-container {
   line-height: 1.7;
-  color: #2d3748;
+  color: #1e40af; /* Blue text color for better visibility */
 }
 
 .summary-title {
-  color: #2d3748;
+  color: #1e40af; /* Blue text color for better visibility */
   font-size: 1.4rem;
   font-weight: 700;
   margin: 1rem 0;
@@ -358,7 +359,7 @@
 }
 
 .summary-section-title {
-  color: #4a5568;
+  color: #1e40af; /* Blue text color for better visibility */
   font-size: 1.2rem;
   font-weight: 600;
   margin: 1.5rem 0 1rem 0;
@@ -369,7 +370,7 @@
 }
 
 .summary-subsection {
-  color: #2d3748;
+  color: #1e40af; /* Blue text color for better visibility */
   font-size: 1.1rem;
   font-weight: 600;
   margin: 1rem 0 0.5rem 0;
@@ -380,7 +381,7 @@
 
 .summary-bold {
   font-weight: 700;
-  color: #2d3748;
+  color: #1e40af; /* Blue text color for better visibility */
   background: rgba(142, 161, 181, 0.15);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
@@ -394,6 +395,7 @@
   border-left: 2px solid rgba(142, 161, 181, 0.4);
   position: relative;
   padding-left: 1.5rem;
+  color: #000000; /* Black text color for bullet points */
 }
 
 .summary-bullet::before {

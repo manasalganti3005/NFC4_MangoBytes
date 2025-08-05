@@ -63,17 +63,17 @@ def detect_intent_keywords(user_query):
     """Simple keyword-based intent detection fallback"""
     query_lower = user_query.lower()
     
+    # Check for comparison keywords FIRST (higher priority)
+    comparison_keywords = ['compare', 'comparison', 'difference', 'versus', 'vs', 'contrast', 'comparing']
+    if any(keyword in query_lower for keyword in comparison_keywords):
+        print(f"🎯 Keyword detection: Found comparison keyword in '{query_lower}'")
+        return 3
+    
     # Check for summarization keywords
     summary_keywords = ['summarize', 'summary', 'overview', 'gist', 'main points', 'key points', 'summarise', 'summaries']
     if any(keyword in query_lower for keyword in summary_keywords):
         print(f"🎯 Keyword detection: Found summary keyword in '{query_lower}'")
         return 2
-    
-    # Check for comparison keywords
-    comparison_keywords = ['compare', 'comparison', 'difference', 'versus', 'vs', 'contrast']
-    if any(keyword in query_lower for keyword in comparison_keywords):
-        print(f"🎯 Keyword detection: Found comparison keyword in '{query_lower}'")
-        return 3
     
     # Default to RAG
     print(f"🎯 Keyword detection: No specific keywords found, defaulting to RAG")

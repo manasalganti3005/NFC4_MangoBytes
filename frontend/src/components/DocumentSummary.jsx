@@ -56,28 +56,73 @@ const DocumentSummary = ({ documentIds, documentNames }) => {
           setExpandedDocs(new Set([summaryResults[0].id]));
         }
       } else {
-        // Multi-document summary
+        // Multiple documents - get both individual summaries and comparison
+        const allSummaries = [];
+        
+        // First, get individual summaries for each document
+        const individualSummaryPromises = documentIds.map(async (docId, index) => {
+          try {
+            const response = await axios.post('http://localhost:5000/api/query', {
+              message: 'Provide a comprehensive summary of this document with detailed analysis, key points, and insights',
+              document_ids: [docId]
+            }, {
+              timeout: 120000 // 2 minutes timeout
+            });
+
+            return {
+              id: docId,
+              name: documentNames[index] || `Document ${index + 1}`,
+              summary: response.data.answer || 'Summary not available',
+              timestamp: new Date(),
+              type: 'individual'
+            };
+          } catch (error) {
+            console.error(`Failed to load summary for document ${docId}:`, error);
+            return {
+              id: docId,
+              name: documentNames[index] || `Document ${index + 1}`,
+              summary: 'Failed to load summary. Please try again.',
+              timestamp: new Date(),
+              error: true,
+              type: 'individual'
+            };
+          }
+        });
+
+        const individualSummaries = await Promise.all(individualSummaryPromises);
+        allSummaries.push(...individualSummaries);
+
+        // Then, get the comparison summary
         try {
-          const response = await axios.post('http://localhost:5000/api/query', {
+          console.log('🔄 Loading comparison summary for documents:', documentIds);
+          const comparisonResponse = await axios.post('http://localhost:5000/api/query', {
             message: 'Create a comprehensive summary comparing all uploaded documents. Analyze similarities, differences, and provide insights across all documents.',
             document_ids: documentIds
           }, {
             timeout: 180000 // 3 minutes timeout for multi-doc
           });
 
-          const multiDocSummary = {
-            id: 'multi-doc',
-            name: `Comparison of ${documentIds.length} Documents`,
-            summary: response.data.answer || 'Multi-document summary not available',
-            timestamp: new Date()
+          console.log('✅ Comparison response received:', comparisonResponse.data);
+          const comparisonSummary = {
+            id: 'comparison',
+            name: `📊 Comparison of ${documentIds.length} Documents`,
+            summary: comparisonResponse.data.answer || 'Multi-document comparison not available',
+            timestamp: new Date(),
+            type: 'comparison'
           };
 
-          setSummaries([multiDocSummary]);
-          setExpandedDocs(new Set(['multi-doc']));
+          allSummaries.push(comparisonSummary);
+          console.log('📊 Added comparison summary to list');
         } catch (error) {
-          console.error('Failed to load multi-document summary:', error);
-          setError('Failed to load multi-document summary. Please try again.');
+          console.error('❌ Failed to load comparison summary:', error);
+          console.error('Error details:', error.response?.data || error.message);
+          
+          // Don't add fallback - let it fail naturally
         }
+
+        setSummaries(allSummaries);
+        // Auto-expand the comparison summary
+        setExpandedDocs(new Set(['comparison']));
       }
     } catch (error) {
       console.error('Failed to load summaries:', error);
@@ -169,7 +214,11 @@ const DocumentSummary = ({ documentIds, documentNames }) => {
         </div>
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>Generating comprehensive summaries...</p>
+          <p>
+            {documentIds.length > 1 
+              ? `Generating ${documentIds.length} individual summaries + comparison...` 
+              : 'Generating comprehensive summary...'}
+          </p>
           <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>
             This may take a few moments
           </p>
@@ -196,10 +245,14 @@ const DocumentSummary = ({ documentIds, documentNames }) => {
 
   return (
     <div className="document-summary-container">
-      <div className="summary-header">
-        <h2>📚 Document Summaries</h2>
-        <div className="summary-count">{summaries.length} document(s)</div>
-      </div>
+              <div className="summary-header">
+          <h2>📚 Document Summaries</h2>
+          <div className="summary-count">
+            {summaries.some(s => s.type === 'comparison') 
+              ? `${documentIds.length} documents + comparison` 
+              : `${summaries.length} document(s)`}
+          </div>
+        </div>
       
       <div className="summaries-list">
         {summaries.map((summary, index) => (

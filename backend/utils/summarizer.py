@@ -69,6 +69,7 @@ Please format the response with clear headings, bullet points, and highlight key
         else:
             # Multiple document summarization
             documents_data = []
+            combined_text = ""  # Initialize combined_text for multi-doc case
             for doc in docs:
                 doc_data = {
                     'id': doc.get('document_id', 'unknown'),
@@ -77,6 +78,7 @@ Please format the response with clear headings, bullet points, and highlight key
                     'chunks': [chunk.get('text', '') for chunk in doc.get('chunks', [])]
                 }
                 documents_data.append(doc_data)
+                combined_text += doc.get('raw_text', '') + "\n\n"  # Build combined_text
 
             if not documents_data:
                 return { "answer": "No documents found to summarize." }
@@ -117,9 +119,6 @@ Documents to analyze:
 {docs_content}
 
 Please provide a comprehensive analysis that synthesizes information from all {len(documents_data)} documents."""
-
-        # Use the improved prompt with Groq API
-        chunks_text = '\n'.join(chunks[:10])  # Use first 10 chunks
         prompt = f"""You are an expert document summarizer. Create a comprehensive, well-formatted summary with the following structure:
 
 # 📋 DOCUMENT SUMMARY

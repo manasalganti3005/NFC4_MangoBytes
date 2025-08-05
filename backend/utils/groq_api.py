@@ -49,6 +49,19 @@ def groq_generate(prompt, max_tokens=600, temperature=0.3, timeout=90):
             generated_text = result['choices'][0]['message']['content']
             print(f"✅ Groq API call successful")
             return generated_text
+        elif response.status_code == 429:
+            # Rate limit exceeded
+            error_data = response.json()
+            print(f"⏰ Groq API rate limit exceeded: {error_data}")
+            
+            # Try to extract retry time from error message
+            import re
+            retry_match = re.search(r'try again in (\d+\.?\d*)s', error_data.get('error', {}).get('message', ''))
+            if retry_match:
+                retry_seconds = float(retry_match.group(1))
+                print(f"⏰ Rate limit retry time: {retry_seconds} seconds")
+            
+            return None
         else:
             print(f"❌ Groq API error: {response.status_code} - {response.text}")
             return None
