@@ -21,34 +21,31 @@ collection = db[COLLECTION_NAME]
 
 def get_similar_chunks(query, document_ids, top_k=3):
     try:
-        print(f"Searching for documents: {document_ids}")
+        print(f"🔎 Searching for documents: {document_ids}")
         query_embedding = model.encode(query).tolist()
 
-        # First, get all documents that match the document_ids
+        # Get all documents matching the given document_ids
         matching_docs = list(collection.find({"document_id": {"$in": document_ids}}))
-        
-        print(f"Found {len(matching_docs)} matching documents")
-        
+        print(f"📄 Found {len(matching_docs)} matching documents")
+
         if not matching_docs:
             return []
-        
-        # Calculate dynamic threshold based on query length and complexity
+
+        # 🔧 Set more realistic thresholds for similarity filtering
         query_words = len(query.split())
         if query_words < 5:
-            similarity_threshold = 0.15  # Higher threshold for short queries
+            similarity_threshold = 0.65  # Higher for short queries
         elif query_words < 10:
-            similarity_threshold = 0.12  # Medium threshold for medium queries
+            similarity_threshold = 0.6   # Medium
         else:
-            similarity_threshold = 0.08  # Lower threshold for complex queries
-        
-        print(f"🎯 Using similarity threshold: {similarity_threshold} (query length: {query_words} words)")
-        
-        # Flatten all chunks from matching documents
+            similarity_threshold = 0.55  # Lower for longer queries
+
+        print(f"🎯 Using similarity threshold: {similarity_threshold:.2f} (query length: {query_words} words)")
+
+        # Collect all chunks
         all_chunks = []
-        total_chunks = 0
         for doc in matching_docs:
             if 'chunks' in doc:
-                total_chunks += len(doc['chunks'])
                 for chunk in doc['chunks']:
                     all_chunks.append({
                         'text': chunk.get('text', ''),
@@ -56,69 +53,54 @@ def get_similar_chunks(query, document_ids, top_k=3):
                         'filename': doc.get('filename', 'Unknown'),
                         'document_id': doc.get('document_id', 'Unknown')
                     })
-        
-        print(f"Found {total_chunks} total chunks, {len(all_chunks)} with embeddings")
-        
-        if not all_chunks:
-            return []
-        
-        # Calculate similarities manually since we can't use $vectorSearch with filtering
+
+        print(f"📦 Total chunks collected: {len(all_chunks)}")
+
+        # Calculate cosine similarity manually
         similarities = []
+        query_emb = np.array(query_embedding)
+
         for chunk in all_chunks:
             if chunk['embedding']:
                 try:
                     chunk_emb = np.array(chunk['embedding'])
-                    query_emb = np.array(query_embedding)
+                    sim = np.dot(chunk_emb, query_emb) / (np.linalg.norm(chunk_emb) * np.linalg.norm(query_emb))
                     
-                    # Normalize vectors
-                    chunk_norm = np.linalg.norm(chunk_emb)
-                    query_norm = np.linalg.norm(query_emb)
-                    
-                    if chunk_norm > 0 and query_norm > 0:
-                        similarity = np.dot(chunk_emb, query_emb) / (chunk_norm * query_norm)
-                        # Only include chunks with meaningful similarity (above threshold)
-                        if similarity > similarity_threshold:
-                            similarities.append((similarity, chunk))
+                    if sim > similarity_threshold:
+                        similarities.append((sim, chunk))
                 except Exception as e:
-                    print(f"Error calculating similarity for chunk: {str(e)}")
+                    print(f"⚠️ Error calculating similarity: {e}")
                     continue
-        
-        print(f"🔍 Found {len(similarities)} chunks with meaningful similarity (threshold: {similarity_threshold:.3f})")
-        
-        # Sort by similarity and get top_k
+
+        print(f"✅ Chunks passing threshold ({similarity_threshold}): {len(similarities)}")
+
+        # Sort by similarity
         similarities.sort(key=lambda x: x[0], reverse=True)
         top_chunks = similarities[:top_k]
-        
-        # If no chunks meet the threshold, try with a lower threshold
+
+        # Fallback if none pass threshold
         if not top_chunks and len(similarities) > 0:
             print("⚠️ No chunks met the initial threshold, trying with lower threshold...")
-            lower_threshold = similarity_threshold * 0.5
+            lower_threshold = similarity_threshold * 0.95
             top_chunks = [(sim, chunk) for sim, chunk in similarities if sim > lower_threshold][:top_k]
-            print(f"🔍 Found {len(top_chunks)} chunks with lower threshold ({lower_threshold:.3f})")
-        
-        # Log the similarity scores of selected chunks
-        if top_chunks:
-            print(f"📊 Top {len(top_chunks)} chunk similarities:")
-            for i, (similarity, chunk) in enumerate(top_chunks):
-                print(f"  {i+1}. Similarity: {similarity:.3f} - Preview: {chunk['text'][:50]}...")
-        else:
-            print("⚠️ No chunks met any similarity threshold")
-            
-        # Format results to match expected structure
-        results = []
-        for similarity, chunk in top_chunks:
-            results.append({
-                'chunk': chunk['text'],
-                'filename': chunk['filename'],
-                'document_id': chunk['document_id'],
-                'similarity': float(similarity)
-            })
-        
+            print(f"🔍 Found {len(top_chunks)} chunks with relaxed threshold ({lower_threshold:.2f})")
+
+        # Log selected chunk similarities
+        for i, (sim, chunk) in enumerate(top_chunks):
+            print(f"{i+1}. Similarity: {sim:.3f} - Text preview: {chunk['text'][:50]}...")
+
+        # Return results in expected format
+        results = [{
+            'chunk': chunk['text'],
+            'filename': chunk['filename'],
+            'document_id': chunk['document_id'],
+            'similarity': float(sim)
+        } for sim, chunk in top_chunks]
+
         return results
-        
+
     except Exception as e:
-        print(f"Error in get_similar_chunks: {str(e)}")
-        # Fallback: return first few chunks from documents
+        print(f"❌ Error in get_similar_chunks: {str(e)}")
         return get_fallback_chunks(document_ids, top_k)
 
 def get_fallback_chunks(document_ids, top_k=3):
