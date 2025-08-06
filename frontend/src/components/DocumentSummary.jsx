@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './DocumentSummary.css';
 
-const DocumentSummary = ({ documentIds, documentNames }) => {
+const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
   const [summaries, setSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDocs, setExpandedDocs] = useState(new Set());
@@ -13,6 +13,13 @@ const DocumentSummary = ({ documentIds, documentNames }) => {
       loadSummaries();
     }
   }, [documentIds]);
+
+  // Notify parent component when summaries are updated
+  useEffect(() => {
+    if (onSummariesUpdate && summaries.length > 0) {
+      onSummariesUpdate(summaries);
+    }
+  }, [summaries, onSummariesUpdate]);
 
   const loadSummaries = async () => {
     try {

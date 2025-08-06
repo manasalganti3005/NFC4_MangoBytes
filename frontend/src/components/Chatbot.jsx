@@ -1,6 +1,7 @@
 // src/components/Chatbot.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import jsPDF from 'jspdf';
 import DocumentSummary from './DocumentSummary';
 import './Chatbot.css';
 import './Summary.css';
@@ -11,6 +12,8 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [documentSummaries, setDocumentSummaries] = useState([]);
   const chatboxRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -100,6 +103,163 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
     sendMessage(suggestion);
   };
 
+  const handleSummariesUpdate = (summaries) => {
+    console.log('📋 Received summaries from DocumentSummary:', summaries);
+    setDocumentSummaries(summaries);
+  };
+
+  const downloadChatReport = () => {
+    setIsDownloading(true);
+    
+    try {
+      const doc = new jsPDF();
+      let yPosition = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const textWidth = pageWidth - (2 * margin);
+      
+      // Title
+      doc.setFontSize(20);
+      doc.setFont(undefined, 'bold');
+      doc.text('Chat Conversation Report', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+      
+      // Document information
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Documents Analyzed: ${documentNames.join(', ')}`, margin, yPosition);
+      yPosition += 10;
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPosition);
+      yPosition += 20;
+      
+      // Chat messages only
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text('Chat Conversation:', margin, yPosition);
+      yPosition += 10;
+      
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
+      
+      messages.forEach((msg, index) => {
+        const sender = msg.sender === 'user' ? 'You' : 'Assistant';
+        const timestamp = msg.timestamp.toLocaleString();
+        
+        // Check if we need a new page
+        if (yPosition > 250) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        // Sender and timestamp
+        doc.setFont(undefined, 'bold');
+        doc.text(`${sender} (${timestamp}):`, margin, yPosition);
+        yPosition += 5;
+        
+        // Message text
+        doc.setFont(undefined, 'normal');
+        const messageText = typeof msg.text === 'string' ? msg.text : 'Formatted content';
+        const lines = doc.splitTextToSize(messageText, textWidth);
+        
+        lines.forEach(line => {
+          if (yPosition > 250) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          doc.text(line, margin, yPosition);
+          yPosition += 5;
+        });
+        
+        yPosition += 10;
+      });
+      
+      // Save the PDF
+      const fileName = `chat-conversation-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const downloadSummaryReport = () => {
+    setIsDownloading(true);
+    
+    try {
+      const doc = new jsPDF();
+      let yPosition = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      const textWidth = pageWidth - (2 * margin);
+      
+      // Title
+      doc.setFontSize(20);
+      doc.setFont(undefined, 'bold');
+      doc.text('Document Summary Report', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 15;
+      
+      // Document information
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Documents Analyzed: ${documentNames.join(', ')}`, margin, yPosition);
+      yPosition += 10;
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, yPosition);
+      yPosition += 20;
+      
+      // Summary section
+      console.log('📋 Document summaries for summary PDF:', documentSummaries);
+      
+      if (documentSummaries.length > 0) {
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Document Summary:', margin, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        
+        documentSummaries.forEach((summary) => {
+          // Add document name as header
+          doc.setFont(undefined, 'bold');
+          doc.text(`${summary.name}:`, margin, yPosition);
+          yPosition += 5;
+          
+          // Add summary content
+          doc.setFont(undefined, 'normal');
+          const summaryText = summary.summary;
+          const lines = doc.splitTextToSize(summaryText, textWidth);
+          
+          lines.forEach(line => {
+            if (yPosition > 250) {
+              doc.addPage();
+              yPosition = 20;
+            }
+            doc.text(line, margin, yPosition);
+            yPosition += 5;
+          });
+          
+          yPosition += 10;
+        });
+      } else {
+        // No summary found
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text('No document summary available. Please generate a summary first.', margin, yPosition);
+      }
+      
+      // Save the PDF
+      const fileName = `document-summary-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error('Error generating summary PDF:', error);
+      alert('Failed to generate summary PDF. Please try again.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const formatSummaryText = (text) => {
     // Check if this looks like a summary (has markdown headers)
     if (text.includes('# 📋') || text.includes('## 📊') || text.includes('## 📝')) {
@@ -140,6 +300,50 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
           </button>
           <h1 className="chat-title">Document Intelligence Hub</h1>
         </div>
+                 <div className="header-right">
+           {(messages.length > 0 || documentSummaries.length > 0) && (
+             <>
+               {documentSummaries.length > 0 && (
+                 <button 
+                   className="download-button summary-download-button" 
+                   onClick={downloadSummaryReport}
+                   disabled={isDownloading}
+                 >
+                   {isDownloading ? (
+                     <>
+                       <div className="button-spinner"></div>
+                       <span>Generating...</span>
+                     </>
+                   ) : (
+                     <>
+                       <span>📋</span>
+                       <span>Download Summary</span>
+                     </>
+                   )}
+                 </button>
+               )}
+               {messages.length > 0 && (
+                 <button 
+                   className="download-button" 
+                   onClick={downloadChatReport}
+                   disabled={isDownloading}
+                 >
+                   {isDownloading ? (
+                     <>
+                       <div className="button-spinner"></div>
+                       <span>Generating...</span>
+                     </>
+                   ) : (
+                     <>
+                       <span>📄</span>
+                       <span>Download Report</span>
+                     </>
+                   )}
+                 </button>
+               )}
+             </>
+           )}
+         </div>
         {documentNames && documentNames.length > 0 && (
           <div className="document-info">
             {documentNames.length === 1 ? (
@@ -242,13 +446,14 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
           </div>
         </div>
 
-        {/* Right panel - Document Summary */}
-        <div className="document-summary-panel">
-          <DocumentSummary 
-            documentIds={documentIds} 
-            documentNames={documentNames} 
-          />
-        </div>
+                 {/* Right panel - Document Summary */}
+         <div className="document-summary-panel">
+           <DocumentSummary 
+             documentIds={documentIds} 
+             documentNames={documentNames} 
+             onSummariesUpdate={handleSummariesUpdate}
+           />
+         </div>
       </div>
     </div>
   );
