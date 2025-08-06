@@ -2,6 +2,7 @@ from utils.rag_pipeline import handle_rag_query
 from utils.summarizer import summarize_documents
 from utils.comparison import compare_documents
 from utils.groq_api import groq_fast_generate, test_groq_connection
+from utils.translator import translate_query, detect_language
 import requests
 
 # Intent Routing Prompt
@@ -79,37 +80,65 @@ def detect_intent_keywords(user_query):
     print(f"🎯 Keyword detection: No specific keywords found, defaulting to RAG")
     return 1
 
-# Master Intent Router Function
+# Master Intent Router Function with Translation Support
 def handle_query(user_query, document_ids):
     try:
-        print(f"🎯 Detecting intent for query: '{user_query}'")
-        intent = detect_intent(user_query)
+        print(f"🎯 Processing query: '{user_query}'")
+        
+        # Detect query language and translate if needed
+        original_query = user_query
+        query_lang = detect_language(user_query)
+        
+        # Translate query to English for better processing
+        if query_lang != 'en' and query_lang != 'unknown':
+            print(f"🌍 Query is in {query_lang}, translating to English...")
+            translated_query, detected_lang = translate_query(user_query, 'en')
+            processing_query = translated_query
+            print(f"🌍 Query translated: '{original_query}' → '{processing_query}'")
+        else:
+            processing_query = user_query
+            print(f"✅ Query is in English, no translation needed")
+        
+        # Detect intent using the translated query
+        print(f"🎯 Detecting intent for query: '{processing_query}'")
+        intent = detect_intent(processing_query)
         print(f"📊 Detected intent: {intent}")
 
+        # Process based on intent
         if intent == 1:
             print("🔍 Using RAG-based query...")
-            # RAG-Based Query
-            return handle_rag_query(user_query, document_ids)
-
+            result = handle_rag_query(processing_query, document_ids)
+            
         elif intent == 2:
             print("📝 Using summarization...")
-            # Summarization
-            return summarize_documents(user_query, document_ids)
-
+            result = summarize_documents(processing_query, document_ids)
+            
         elif intent == 3:
             print("⚖️ Using comparison...")
-            # Comparison
-            return compare_documents(user_query, document_ids)
-
+            result = compare_documents(processing_query, document_ids)
+            
         elif intent == 4:
             print("🔍 Using RAG with source trace...")
-            # RAG with Source Trace
-            return handle_rag_query(user_query, document_ids, with_trace=True)
-
+            result = handle_rag_query(processing_query, document_ids, with_trace=True)
+            
         else:
             print(f"❌ Unknown intent: {intent}")
-            # Fallback Error
-            return {"answer": "[Error] Couldn't determine the intent of your query."}
+            result = {"answer": "[Error] Couldn't determine the intent of your query."}
+        
+        # Add translation info to response if query was translated
+        if query_lang != 'en' and query_lang != 'unknown':
+            if isinstance(result, dict) and 'answer' in result:
+                result['translation_info'] = {
+                    'original_query': original_query,
+                    'translated_query': processing_query,
+                    'query_language': query_lang,
+                    'was_translated': True
+                }
+                # Add note about translation
+                result['answer'] = f"[Query translated from {query_lang} to English]\n\n{result['answer']}"
+        
+        return result
+        
     except Exception as e:
         print(f"❌ Intent router error: {str(e)}")
         import traceback

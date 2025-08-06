@@ -3,14 +3,29 @@ from flask_cors import CORS
 from utils.intent_router import handle_query
 from utils.extract_text import extract_text_from_file
 from utils.text_utils import process_document
+from utils.translator import translate_document_content, detect_language, translate_query
+from utils.language_config import get_language_name, is_well_supported, SUPPORTED_LANGUAGES
 from pymongo import MongoClient
 import os
+import logging
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('multilingual_app.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # MongoDB setup using env vars
 MONGO_URI = os.getenv("MONGO_URI")
@@ -20,12 +35,125 @@ COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 collection = db[COLLECTION_NAME]
+
+def process_multilingual_document(file_bytes, filename, file_ext, file_content_type):
+    """
+    Enhanced document processing with automatic language detection and translation
+    """
+    try:
+        logger.info(f"🌍 Processing multilingual document: {filename}")
+        
+        # Extract text from file
+        raw_text = extract_text_from_file(file_bytes, file_ext)
+        
+        if not raw_text or not raw_text.strip():
+            return None, "Could not extract text from the document.", None
+        
+        logger.info(f"📄 Extracted {len(raw_text)} characters of text from {filename}")
+        
+        # Detect and translate if necessary
+        translated_text, original_lang, was_translated = translate_document_content(raw_text, filename)
+        
+        # Process document with the translated (English) text for better embeddings
+        processing_text = translated_text if was_translated else raw_text
+        
+        # Process document 
+        document = process_document(filename, file_content_type, processing_text)
+        
+        # Add additional multilingual metadata that might not be in process_document
+        if 'original_language' not in document:
+            document['original_language'] = original_lang
+        if 'was_translated' not in document:
+            document['was_translated'] = was_translated
+        if 'original_text' not in document and was_translated:
+            document['original_text'] = raw_text
+        
+        # Ensure translation_info exists
+        if 'translation_info' not in document:
+            document['translation_info'] = {
+                'original_language': original_lang,
+                'translated_to': "en" if was_translated else original_lang,
+                'translation_method': "groq_api" if was_translated else "none",
+                'processed_at': datetime.utcnow().isoformat()
+            }
+        
+        # Log the processing result
+        lang_name = get_language_name(original_lang)
+        if was_translated:
+            logger.info(f"✅ Document processed and translated: {filename} ({lang_name} → English)")
+            success_message = f"Document '{filename}' uploaded and translated from {lang_name} to English."
+        else:
+            logger.info(f"✅ Document processed: {filename} ({lang_name}, no translation needed)")
+            success_message = f"Document '{filename}' uploaded successfully ({lang_name})."
+        
+        language_info = {
+            'original_language': original_lang,
+            'language_name': lang_name,
+            'was_translated': was_translated,
+            'is_well_supported': is_well_supported(original_lang)
+        }
+        
+        return document, success_message, language_info
+        
+    except Exception as e:
+        logger.error(f"❌ Error processing multilingual document {filename}: {str(e)}")
+        return None, f"Error processing document: {str(e)}", None
+
+def get_document_language_summary(document_ids):
+    """
+    Get a summary of languages in the uploaded documents
+    """
+    try:
+        docs = list(collection.find({"document_id": {"$in": document_ids}}))
+        
+        language_summary = {
+            'total_documents': len(docs),
+            'translated_documents': 0,
+            'original_english': 0,
+            'languages': {},
+            'well_supported_count': 0
+        }
+        
+        for doc in docs:
+            original_lang = doc.get('original_language', 'unknown')
+            was_translated = doc.get('was_translated', False)
+            
+            if was_translated:
+                language_summary['translated_documents'] += 1
+            elif original_lang == 'en':
+                language_summary['original_english'] += 1
+                
+            if is_well_supported(original_lang):
+                language_summary['well_supported_count'] += 1
+            
+            lang_name = get_language_name(original_lang)
+            if lang_name not in language_summary['languages']:
+                language_summary['languages'][lang_name] = {
+                    'count': 0,
+                    'documents': [],
+                    'language_code': original_lang,
+                    'is_well_supported': is_well_supported(original_lang)
+                }
+            
+            language_summary['languages'][lang_name]['count'] += 1
+            language_summary['languages'][lang_name]['documents'].append({
+                'filename': doc.get('filename', 'Unknown'),
+                'was_translated': was_translated,
+                'document_id': doc.get('document_id', 'unknown')
+            })
+        
+        return language_summary
+        
+    except Exception as e:
+        logger.error(f"Error getting language summary: {str(e)}")
+        return None
+
 @app.route('/api/upload', methods=['POST'])
 def upload_document():
     try:
-        print(f"📤 Upload request received")
-        print(f"📋 Request files: {list(request.files.keys())}")
-        print(f"📋 Request form: {list(request.form.keys())}")
+        logger.info("📤 Upload request received")
+        logger.info(f"📋 Request files: {list(request.files.keys())}")
+        logger.info(f"📋 Request form: {list(request.form.keys())}")
         
         # Handle multiple files
         uploaded_files = []
@@ -36,7 +164,7 @@ def upload_document():
             file = request.files[f'file{file_index}']
             if file.filename != '':
                 uploaded_files.append(file)
-                print(f"📄 Found file{file_index}: {file.filename}")
+                logger.info(f"📄 Found file{file_index}: {file.filename}")
             file_index += 1
         
         # Also check for single file with key 'file'
@@ -44,98 +172,311 @@ def upload_document():
             file = request.files['file']
             if file.filename != '':
                 uploaded_files.append(file)
-                print(f"📄 Found single file: {file.filename}")
+                logger.info(f"📄 Found single file: {file.filename}")
         
         if not uploaded_files:
-            print("❌ No valid files found")
+            logger.warning("❌ No valid files found")
             return jsonify({'error': 'No files uploaded'}), 400
         
-        print(f"📁 Processing {len(uploaded_files)} file(s)")
+        logger.info(f"📁 Processing {len(uploaded_files)} file(s) with multilingual support")
         
-        # Process all uploaded files
+        # Process all uploaded files with multilingual support
         uploaded_documents = []
+        language_summary = {
+            'total_processed': 0,
+            'translated_count': 0,
+            'languages_detected': set(),
+            'processing_errors': []
+        }
         
         for file in uploaded_files:
-            # Get the file extension to decide how to extract text
-            filename = file.filename
-            file_ext = os.path.splitext(filename)[1].lower()
+            try:
+                # Get file information
+                filename = file.filename
+                file_ext = os.path.splitext(filename)[1].lower()
+                file_content_type = file.content_type
 
-            # Read file bytes for processing
-            file_bytes = file.read()
+                # Read file bytes for processing
+                file_bytes = file.read()
 
-            # Extract raw text from file (directly from bytes)
-            raw_text = extract_text_from_file(file_bytes, file_ext)
+                # Process with multilingual support
+                document_json, message, language_info = process_multilingual_document(
+                    file_bytes, filename, file_ext, file_content_type
+                )
+                
+                if document_json is None:
+                    language_summary['processing_errors'].append({
+                        'filename': filename,
+                        'error': message
+                    })
+                    continue
+                
+                logger.info(f"📄 Processing document: {document_json['filename']}")
+                logger.info(f"🆔 Generated document ID: {document_json['document_id']}")
 
-            # Process into JSON format (chunks, embeddings, etc.)
-            document_json = process_document(file.filename, file.content_type, raw_text)
-            
-            print(f"📄 Processing document: {document_json['filename']}")
-            print(f"🆔 Generated document ID: {document_json['document_id']}")
+                # Store in MongoDB
+                result = collection.insert_one(document_json)
+                logger.info(f"💾 Document stored in MongoDB with ID: {result.inserted_id}")
+                
+                # Update language summary
+                language_summary['total_processed'] += 1
+                if language_info and language_info['was_translated']:
+                    language_summary['translated_count'] += 1
+                if language_info:
+                    language_summary['languages_detected'].add(language_info['language_name'])
+                
+                uploaded_documents.append({
+                    'documentId': document_json['document_id'],
+                    'filename': document_json['filename'],
+                    'language_info': language_info,
+                    'message': message
+                })
+                
+            except Exception as e:
+                error_msg = f"Error processing {filename}: {str(e)}"
+                logger.error(f"❌ {error_msg}")
+                language_summary['processing_errors'].append({
+                    'filename': filename,
+                    'error': error_msg
+                })
 
-            # Store in MongoDB
-            result = collection.insert_one(document_json)
-            print(f"💾 Document stored in MongoDB with ID: {result.inserted_id}")
-            
-            uploaded_documents.append({
-                'documentId': document_json['document_id'],
-                'filename': document_json['filename']
-            })
+        if not uploaded_documents:
+            return jsonify({
+                'error': 'Failed to process any documents',
+                'details': language_summary['processing_errors']
+            }), 400
 
-        # Return information about all uploaded documents
+        # Prepare response with language information
+        language_summary['languages_detected'] = list(language_summary['languages_detected'])
+        
         if len(uploaded_documents) == 1:
+            doc = uploaded_documents[0]
             response_data = {
-                'message': 'Document uploaded and processed successfully',
-                'documentId': uploaded_documents[0]['documentId'],
-                'filename': uploaded_documents[0]['filename']
+                'message': doc['message'],
+                'documentId': doc['documentId'],
+                'filename': doc['filename'],
+                'language_info': doc['language_info'],
+                'multilingual_summary': language_summary
             }
         else:
             response_data = {
                 'message': f'{len(uploaded_documents)} documents uploaded and processed successfully',
                 'documentIds': [doc['documentId'] for doc in uploaded_documents],
                 'filenames': [doc['filename'] for doc in uploaded_documents],
-                'documentId': uploaded_documents[0]['documentId'],  # Keep for backward compatibility
-                'filename': uploaded_documents[0]['filename']  # Keep for backward compatibility
+                'language_details': [doc['language_info'] for doc in uploaded_documents],
+                'multilingual_summary': language_summary,
+                # Keep for backward compatibility
+                'documentId': uploaded_documents[0]['documentId'],
+                'filename': uploaded_documents[0]['filename']
             }
         
-        print(f"📤 Sending response: {response_data}")
+        logger.info(f"📤 Sending response with {len(uploaded_documents)} processed documents")
         return jsonify(response_data), 200
         
     except Exception as e:
-        print(f"❌ Error in upload_document: {str(e)}")
+        logger.error(f"❌ Error in upload_document: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
-# Unified Query Endpoint
 @app.route('/api/query', methods=['POST'])
 def query_documents():
     try:
         data = request.json
         if not data:
-            print("❌ No JSON data provided")
+            logger.warning("❌ No JSON data provided")
             return jsonify({'error': 'No JSON data provided'}), 400
             
         user_query = data.get('message') or data.get('query')  # Handle both 'message' and 'query' keys
         if not user_query:
-            print("❌ No query or message provided")
+            logger.warning("❌ No query or message provided")
             return jsonify({'error': 'No query or message provided'}), 400
             
         document_ids = data.get('document_ids', [])
-        print(f"🔍 Processing query: '{user_query}' for documents: {document_ids}")
+        
+        # Detect query language for logging
+        query_lang = detect_language(user_query)
+        query_lang_name = get_language_name(query_lang)
+        
+        logger.info(f"🔍 Processing query in {query_lang_name}: '{user_query}' for documents: {document_ids}")
 
         if not document_ids:
-            print("❌ No documents uploaded yet")
+            logger.warning("❌ No documents uploaded yet")
             return jsonify({'error': 'No documents uploaded yet.'}), 400
 
-        print("🚀 Calling handle_query...")
+        logger.info("🚀 Calling handle_query with multilingual support...")
+        
+        # The handle_query function now automatically handles translation
         response = handle_query(user_query, document_ids)
-        print(f"✅ Query completed, response: {response}")
+        
+        # Add language context to response
+        language_summary = get_document_language_summary(document_ids)
+        if language_summary:
+            response['document_languages'] = language_summary
+        
+        # Add query language info
+        response['query_language'] = {
+            'detected_language': query_lang,
+            'language_name': query_lang_name,
+            'is_english': query_lang == 'en'
+        }
+        
+        logger.info(f"✅ Query completed successfully")
         return jsonify(response)
+        
     except Exception as e:
-        print(f"❌ Error in query_documents: {str(e)}")
+        logger.error(f"❌ Error in query_documents: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/documents/languages', methods=['POST'])
+def get_document_languages():
+    """
+    Get detailed language information for uploaded documents
+    """
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
+        document_ids = data.get('document_ids', [])
+        
+        if not document_ids:
+            return jsonify({'error': 'document_ids are required'}), 400
+        
+        language_summary = get_document_language_summary(document_ids)
+        
+        if language_summary is None:
+            return jsonify({'error': 'Could not retrieve language information'}), 500
+        
+        return jsonify(language_summary), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Language info retrieval failed: {str(e)}")
+        return jsonify({'error': f'Language info retrieval failed: {str(e)}'}), 500
+
+@app.route('/api/languages/supported', methods=['GET'])
+def get_supported_languages():
+    """
+    Get list of all supported languages
+    """
+    try:
+        supported_langs = []
+        for code, name in SUPPORTED_LANGUAGES.items():
+            supported_langs.append({
+                'code': code,
+                'name': name,
+                'is_well_supported': is_well_supported(code)
+            })
+        
+        # Sort by name
+        supported_langs.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'total_languages': len(supported_langs),
+            'well_supported_count': len([l for l in supported_langs if l['is_well_supported']]),
+            'languages': supported_langs
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting supported languages: {str(e)}")
+        return jsonify({'error': f'Failed to get supported languages: {str(e)}'}), 500
+
+@app.route('/api/translate/test', methods=['POST'])
+def test_translation():
+    """
+    Test endpoint for translation functionality
+    """
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        text = data.get('text', '')
+        source_lang = data.get('source_lang', 'auto')
+        target_lang = data.get('target_lang', 'en')
+        
+        if not text:
+            return jsonify({'error': 'Text is required'}), 400
+        
+        # Detect language if source is auto
+        if source_lang == 'auto':
+            detected_lang = detect_language(text)
+            source_lang = detected_lang
+        
+        # Translate
+        from utils.translator import translate_with_groq
+        translated_text = translate_with_groq(text, source_lang, target_lang)
+        
+        return jsonify({
+            'original_text': text,
+            'translated_text': translated_text,
+            'source_language': source_lang,
+            'source_language_name': get_language_name(source_lang),
+            'target_language': target_lang,
+            'target_language_name': get_language_name(target_lang),
+            'translation_successful': translated_text is not None
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Translation test failed: {str(e)}")
+        return jsonify({'error': f'Translation test failed: {str(e)}'}), 500
+
+@app.route('/api/health/multilingual', methods=['GET'])
+def health_check_multilingual():
+    """
+    Health check endpoint for multilingual features
+    """
+    try:
+        # Test language detection
+        test_text = "Hello world"
+        detected_lang = detect_language(test_text)
+        
+        # Test Groq API connection
+        from utils.groq_api import test_groq_connection
+        groq_status = test_groq_connection()
+        
+        # Get database stats
+        total_docs = collection.count_documents({})
+        translated_docs = collection.count_documents({"was_translated": True})
+        
+        # Get language distribution
+        pipeline = [
+            {"$group": {"_id": "$original_language", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 10}
+        ]
+        
+        top_languages = list(collection.aggregate(pipeline))
+        
+        return jsonify({
+            'status': 'healthy',
+            'language_detection': {
+                'working': detected_lang is not None,
+                'test_result': detected_lang
+            },
+            'translation_api': {
+                'groq_status': groq_status
+            },
+            'database_stats': {
+                'total_documents': total_docs,
+                'translated_documents': translated_docs,
+                'top_languages': top_languages
+            },
+            'supported_languages_count': len(SUPPORTED_LANGUAGES),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"❌ Health check failed: {str(e)}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500
+
 if __name__ == '__main__':
+    logger.info("🚀 Starting Flask app with multilingual support")
+    logger.info(f"🌍 Supporting {len(SUPPORTED_LANGUAGES)} languages")
     app.run(debug=True)
