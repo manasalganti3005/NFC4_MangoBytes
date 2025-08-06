@@ -48,3 +48,12 @@
 2025-08-06 09:46:25,427 - werkzeug - WARNING -  * Debugger is active!
 2025-08-06 09:46:25,433 - werkzeug - INFO -  * Debugger PIN: 118-173-427
 2025-08-06 09:46:56,587 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Krisha\\DocDocDoc\\NFC4_MangoBytes\\backend\\utils\\summarizer.py', reloading
+2025-08-06 09:46:57,819 - werkzeug - INFO -  * Restarting with stat
+2025-08-06 09:47:06,049 - werkzeug - WARNING -  * Debugger is active!
+2025-08-06 09:47:06,062 - werkzeug - INFO -  * Debugger PIN: 118-173-427
+2025-08-06 09:47:50,061 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:47:50] "POST /api/upload HTTP/1.1" 200 -
+2025-08-06 09:47:52,183 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:47:52] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:47:53,460 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:47:53] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:47:53,584 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:47:53] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:48:11,362 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:48:11] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:48:12,733 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:48:12] "POST /api/query HTTP/1.1" 200 -
