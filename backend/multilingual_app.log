@@ -57,3 +57,40 @@
 2025-08-06 09:47:53,584 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:47:53] "POST /api/query HTTP/1.1" 200 -
 2025-08-06 09:48:11,362 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:48:11] "OPTIONS /api/query HTTP/1.1" 200 -
 2025-08-06 09:48:12,733 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:48:12] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:54:00,758 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-06 09:54:00,758 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-06 09:54:00,758 - werkzeug - INFO -  * Restarting with stat
+2025-08-06 09:54:07,945 - werkzeug - WARNING -  * Debugger is active!
+2025-08-06 09:54:07,949 - werkzeug - INFO -  * Debugger PIN: 118-173-427
+2025-08-06 09:54:20,067 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:54:20] "POST /api/upload HTTP/1.1" 200 -
+2025-08-06 09:54:22,123 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:54:22] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:54:22,428 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:54:22] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:54:25,697 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:54:25] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:54:25,895 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:54:25] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:55:06,352 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:06] "POST /api/upload HTTP/1.1" 200 -
+2025-08-06 09:55:08,368 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:08] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:55:08,678 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:08] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:55:12,060 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:12] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:55:12,193 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:12] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:55:28,010 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:28] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:55:28,662 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:55:28] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:56:21,673 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-06 09:56:21,673 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-06 09:56:21,673 - werkzeug - INFO -  * Restarting with stat
+2025-08-06 09:56:27,995 - werkzeug - WARNING -  * Debugger is active!
+2025-08-06 09:56:27,999 - werkzeug - INFO -  * Debugger PIN: 118-173-427
+2025-08-06 09:56:44,162 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:56:44] "POST /api/upload HTTP/1.1" 200 -
+2025-08-06 09:56:46,284 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:56:46] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:56:46,609 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:56:46] "OPTIONS /api/query HTTP/1.1" 200 -
+2025-08-06 09:56:50,428 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:56:50] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:56:50,862 - werkzeug - INFO - 127.0.0.1 - - [06/Aug/2025 09:56:50] "POST /api/query HTTP/1.1" 200 -
+2025-08-06 09:57:30,152 - werkzeug - INFO -  * Detected change in 'C:\\Users\\Krisha\\DocDocDoc\\NFC4_MangoBytes\\backend\\utils\\summarizer.py', reloading
+2025-08-06 09:57:31,992 - werkzeug - INFO -  * Restarting with stat
+2025-08-06 09:57:41,316 - werkzeug - WARNING -  * Debugger is active!
+2025-08-06 09:57:41,320 - werkzeug - INFO -  * Debugger PIN: 118-173-427
+2025-08-06 09:57:54,353 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-06 09:57:54,353 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-08-06 09:57:54,353 - werkzeug - INFO -  * Restarting with stat
