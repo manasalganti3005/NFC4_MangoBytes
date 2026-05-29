@@ -166,8 +166,10 @@ def get_document_language_summary(document_ids):
         logger.error(f"Error getting language summary: {str(e)}")
         return None
 
-@app.route('/api/upload', methods=['POST'])
+@app.route('/api/upload', methods=['POST', 'OPTIONS'])
 def upload_document():
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
     try:
         logger.info("📤 Upload request received")
         logger.info(f"📋 Request files: {list(request.files.keys())}")
