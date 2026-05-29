@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 from utils.intent_router import handle_query
 from utils.extract_text import extract_text_from_file
 from utils.text_utils import process_document
@@ -14,19 +13,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 @app.after_request
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization,Accept'
     response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    response.headers['Access-Control-Max-Age'] = '86400'
     return response
 
 @app.route('/api/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
-    return '', 200
+    return jsonify({}), 200
 
 # Configure logging
 logging.basicConfig(
