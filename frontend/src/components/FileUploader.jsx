@@ -130,7 +130,7 @@ const FileUploader = ({ onUploadSuccess }) => {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        timeout: 30000,
+        timeout: 120000,
       });
 
       clearInterval(progressInterval);
