@@ -1,6 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import './DocumentSummary.css';
+
+// Helper function to clean up backend text before rendering
+const cleanMarkdown = (text) => {
+  if (!text) return "";
+  return text
+    // 1. Fix Bullet Points: Replace "•" with a newline and a standard markdown dash
+    .replace(/•/g, '\n-')
+    
+    // 2. Fix Section Headers: Ensure "Section X:" starts on a new line
+    .replace(/(#{1,6} |^)(\*\*Section \d+:)/gm, '\n$2')
+    
+    // 3. Fix Bold Headers running into text: Ensure "Key Points" and "Details" start on new lines
+    .replace(/\*\*Key Points\*\*/g, '\n\n**Key Points**')
+    .replace(/\*\*Details\*\*/g, '\n\n**Details**')
+    .replace(/\*\*Unique Contributions\*\*/g, '\n\n**Unique Contributions**')
+    
+    // 4. Fix List Items: Ensure dashes have a newline before them if they are stuck to text
+    .replace(/([^\n])\s*-\s/g, '$1\n- ')
+    
+    // 5. Cleanup: Remove excessive newlines
+    .replace(/\n{3,}/g, '\n\n');
+};
 
 const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
   const [summaries, setSummaries] = useState([]);
@@ -30,7 +54,7 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
         // Single document summary
         const summaryPromises = documentIds.map(async (docId, index) => {
           try {
-            const response = await axios.post('http://localhost:5000/api/query', {
+            const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/query`, {
               message: 'Provide a comprehensive summary of this document with detailed analysis, key points, and insights',
               document_ids: [docId]
             }, {
@@ -69,7 +93,7 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
         // First, get individual summaries for each document
         const individualSummaryPromises = documentIds.map(async (docId, index) => {
           try {
-            const response = await axios.post('http://localhost:5000/api/query', {
+            const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/query`, {
               message: 'Provide a comprehensive summary of this document with detailed analysis, key points, and insights',
               document_ids: [docId]
             }, {
@@ -102,14 +126,13 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
         // Then, get the comparison summary
         try {
           console.log('🔄 Loading comparison summary for documents:', documentIds);
-          const comparisonResponse = await axios.post('http://localhost:5000/api/query', {
+          const comparisonResponse = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/query`, {
             message: 'Create a comprehensive summary comparing all uploaded documents. Analyze similarities, differences, and provide insights across all documents.',
             document_ids: documentIds
           }, {
             timeout: 180000 // 3 minutes timeout for multi-doc
           });
 
-          console.log('✅ Comparison response received:', comparisonResponse.data);
           const comparisonSummary = {
             id: 'comparison',
             name: `📊 Comparison of ${documentIds.length} Documents`,
@@ -119,16 +142,11 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
           };
 
           allSummaries.push(comparisonSummary);
-          console.log('📊 Added comparison summary to list');
         } catch (error) {
           console.error('❌ Failed to load comparison summary:', error);
-          console.error('Error details:', error.response?.data || error.message);
-          
-          // Don't add fallback - let it fail naturally
         }
 
         setSummaries(allSummaries);
-        // Auto-expand the comparison summary
         setExpandedDocs(new Set(['comparison']));
       }
     } catch (error) {
@@ -149,54 +167,6 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
     setExpandedDocs(newExpanded);
   };
 
-  const formatSummaryText = (text) => {
-    // Enhanced text formatting for better readability
-    if (text.includes('# 📋') || text.includes('## 📊') || text.includes('## 📝') || 
-        text.includes('# 📚') || text.includes('## 📊 OVERALL COMPARISON')) {
-      return (
-        <div className="summary-container">
-          <div dangerouslySetInnerHTML={{ 
-            __html: text
-              .replace(/# 📋 DOCUMENT SUMMARY/g, '<h1 class="summary-title">📋 DOCUMENT SUMMARY</h1>')
-              .replace(/# 📚 MULTI-DOCUMENT ANALYSIS/g, '<h1 class="summary-title">📚 MULTI-DOCUMENT ANALYSIS</h1>')
-              .replace(/## 📊 OVERALL SUMMARY/g, '<h2 class="summary-section-title">📊 OVERALL SUMMARY</h2>')
-              .replace(/## 📊 OVERALL COMPARISON/g, '<h2 class="summary-section-title">📊 OVERALL COMPARISON</h2>')
-              .replace(/## 📝 SECTION-WISE BREAKDOWN/g, '<h2 class="summary-section-title">📝 SECTION-WISE BREAKDOWN</h2>')
-              .replace(/## 📝 DOCUMENT-BY-DOCUMENT BREAKDOWN/g, '<h2 class="summary-section-title">📝 DOCUMENT-BY-DOCUMENT BREAKDOWN</h2>')
-              .replace(/## 🔍 KEY FINDINGS & HIGHLIGHTS/g, '<h2 class="summary-section-title">🔍 KEY FINDINGS & HIGHLIGHTS</h2>')
-              .replace(/## 🔍 CROSS-DOCUMENT FINDINGS/g, '<h2 class="summary-section-title">🔍 CROSS-DOCUMENT FINDINGS</h2>')
-              .replace(/## 🎯 MAIN TOPICS & THEMES/g, '<h2 class="summary-section-title">🎯 MAIN TOPICS & THEMES</h2>')
-              .replace(/## 🎯 SYNTHESIZED INSIGHTS/g, '<h2 class="summary-section-title">🎯 SYNTHESIZED INSIGHTS</h2>')
-              .replace(/## 💡 RECOMMENDATIONS & INSIGHTS/g, '<h2 class="summary-section-title">💡 RECOMMENDATIONS & INSIGHTS</h2>')
-              .replace(/## 💡 RECOMMENDATIONS/g, '<h2 class="summary-section-title">💡 RECOMMENDATIONS</h2>')
-              .replace(/## 📈 KEY STATISTICS/g, '<h2 class="summary-section-title">📈 KEY STATISTICS</h2>')
-              .replace(/\*\*(.*?)\*\*/g, '<span class="summary-bold">$1</span>')
-              .replace(/\n• /g, '<div class="summary-bullet">')
-              .replace(/\n\n/g, '</div><div class="summary-bullet">')
-              .replace(/\n### \*\*(.*?)\*\*/g, '<h3 class="summary-subsection">$1</h3>')
-              .replace(/Document \d+:/g, '<span class="doc-reference">$&</span>')
-              .replace(/--- Document: (.*?) ---/g, '<div class="doc-separator">📄 $1</div>')
-          }} />
-        </div>
-      );
-    }
-
-    // Format plain text with better structure
-    const formattedText = text
-      .replace(/\n\n/g, '</p><p>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n- /g, '<br/>• ')
-      .replace(/\n• /g, '<br/>• ')
-      .replace(/Document \d+:/g, '<span class="doc-reference">$&</span>')
-      .replace(/--- Document: (.*?) ---/g, '<div class="doc-separator">📄 $1</div>');
-    
-    return (
-      <div className="summary-container">
-        <p>{formattedText}</p>
-      </div>
-    );
-  };
-
   const getDocumentIcon = (name) => {
     const extension = name.split('.').pop()?.toLowerCase();
     switch (extension) {
@@ -206,8 +176,6 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
       case 'txt': return '📄';
       case 'xls':
       case 'xlsx': return '📊';
-      case 'ppt':
-      case 'pptx': return '📋';
       default: return '📄';
     }
   };
@@ -221,14 +189,7 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
         </div>
         <div className="loading-container">
           <div className="loading-spinner"></div>
-          <p>
-            {documentIds.length > 1 
-              ? `Generating ${documentIds.length} individual summaries + comparison...` 
-              : 'Generating comprehensive summary...'}
-          </p>
-          <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '0.5rem' }}>
-            This may take a few moments
-          </p>
+          <p>Generating comprehensive summary...</p>
         </div>
       </div>
     );
@@ -252,17 +213,17 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
 
   return (
     <div className="document-summary-container">
-              <div className="summary-header">
-          <h2>📚 Document Summaries</h2>
-          <div className="summary-count">
-            {summaries.some(s => s.type === 'comparison') 
-              ? `${documentIds.length} documents + comparison` 
-              : `${summaries.length} document(s)`}
-          </div>
+      <div className="summary-header">
+        <h2>📚 Document Summaries</h2>
+        <div className="summary-count">
+          {summaries.some(s => s.type === 'comparison') 
+            ? `${documentIds.length} documents + comparison` 
+            : `${summaries.length} document(s)`}
         </div>
+      </div>
       
       <div className="summaries-list">
-        {summaries.map((summary, index) => (
+        {summaries.map((summary) => (
           <div key={summary.id} className={`summary-item ${expandedDocs.has(summary.id) ? 'expanded' : ''}`}>
             <div 
               className="summary-header-item"
@@ -284,38 +245,24 @@ const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
               <div className="summary-content">
                 {summary.error ? (
                   <div className="error-message">
-                    <p>⚠️ Failed to generate summary for this document.</p>
-                    <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>
-                      The document might be too large or in an unsupported format.
-                    </p>
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        loadSummaries();
-                      }} 
-                      className="retry-button-small"
-                    >
-                      🔄 Retry Summary
+                    <p>⚠️ Failed to generate summary.</p>
+                    <button onClick={(e) => { e.stopPropagation(); loadSummaries(); }} className="retry-button-small">
+                      🔄 Retry
                     </button>
                   </div>
                 ) : (
-                  formatSummaryText(summary.summary)
+                  // >>> THIS IS THE UPDATED PART USING REACT MARKDOWN <<<
+                  <div className="markdown-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {cleanMarkdown(summary.summary)}
+                    </ReactMarkdown>
+                  </div>
                 )}
               </div>
             )}
           </div>
         ))}
       </div>
-      
-      {summaries.length === 0 && (
-        <div className="no-summaries">
-          <p>📂 No documents uploaded yet</p>
-          <p>Upload documents to see their summaries here.</p>
-          <p style={{ fontSize: '0.9rem', opacity: 0.7, marginTop: '1rem' }}>
-            Summaries will be automatically generated when you upload documents.
-          </p>
-        </div>
-      )}
     </div>
   );
 };

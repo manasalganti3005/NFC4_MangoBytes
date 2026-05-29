@@ -90,7 +90,11 @@ const FileUploader = ({ onUploadSuccess }) => {
     }
   };
 
-  const handleUpload = async () => {
+  // This is now the form submission handler
+  const handleUpload = async (e) => {
+    // This is the crucial line that stops the page reload
+    e.preventDefault();
+
     if (selectedFiles.length === 0) {
       setUploadMessage('Please select at least one file');
       setMessageType('error');
@@ -122,7 +126,7 @@ const FileUploader = ({ onUploadSuccess }) => {
         });
       }, 200);
 
-      const response = await axios.post('http://localhost:5000/api/upload', formData, {
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -294,7 +298,8 @@ const FileUploader = ({ onUploadSuccess }) => {
               )}
             </div>
 
-            <div className="upload-controls">
+            {/* >>>>>>>>>> CHANGED: Wrapped controls in a form <<<<<<<<<< */}
+            <form className="upload-controls" onSubmit={handleUpload}>
               {isUploading && uploadProgress > 0 && (
                 <div className="progress-container">
                   <div className="progress-bar">
@@ -307,8 +312,10 @@ const FileUploader = ({ onUploadSuccess }) => {
               )}
 
               <button 
+                // >>>>>>>>>> CHANGED: Changed back to type="submit" <<<<<<<<<<
+                type="submit"
                 className="upload-button" 
-                onClick={handleUpload}
+                // onClick handler is removed because the form handles it
                 disabled={selectedFiles.length === 0 || isUploading}
               >
                 {isUploading && <span className="loading-spinner"></span>}
@@ -319,6 +326,7 @@ const FileUploader = ({ onUploadSuccess }) => {
 
               {selectedFiles.length > 0 && !isUploading && (
                 <button 
+                  type="button" // Clear button should not submit form
                   className="browse-button"
                   onClick={resetUpload}
                   style={{ 
@@ -332,7 +340,8 @@ const FileUploader = ({ onUploadSuccess }) => {
                   Clear All Files
                 </button>
               )}
-            </div>
+            </form>
+            {/* >>>>>>>>>> END CHANGED SECTION <<<<<<<<<< */}
           </div>
 
           {uploadMessage && (

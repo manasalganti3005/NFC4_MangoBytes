@@ -53,7 +53,7 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
       console.log('📤 Sending query with document IDs:', documentIds);
       
       // API call to your backend
-      const response = await axios.post('http://localhost:5000/api/query', { 
+      const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/api/query`, {
         message: userMessage,
         // Send all document IDs for multi-document analysis
         document_ids: documentIds || []
