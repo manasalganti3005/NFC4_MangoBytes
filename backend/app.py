@@ -41,13 +41,20 @@ def process_multilingual_document(file_bytes, filename, file_ext, file_content_t
     Enhanced document processing with automatic language detection and translation
     """
     try:
-        logger.info(f"🌍 Processing multilingual document: {filename}")
+        logger.info(f"🌍 Processing multilingual document: {filename} (size: {len(file_bytes)} bytes, ext: {file_ext})")
         
         # Extract text from file
-        raw_text = extract_text_from_file(file_bytes, file_ext)
-        
-        if not raw_text or not raw_text.strip():
-            return None, "Could not extract text from the document.", None
+        try:
+            raw_text = extract_text_from_file(file_bytes, file_ext)
+            logger.info(f"📝 Extracted {len(raw_text)} characters from {filename}")
+            
+            if not raw_text or not raw_text.strip():
+                logger.warning(f"⚠️ Extracted text is empty for {filename}")
+                return None, "Could not extract text from the document. The document may be empty or not contain extractable text.", None
+                
+        except Exception as e:
+            logger.error(f"❌ Error extracting text from {filename}: {str(e)}", exc_info=True)
+            return None, f"Error extracting text from document: {str(e)}", None
         
         logger.info(f"📄 Extracted {len(raw_text)} characters of text from {filename}")
         
@@ -155,6 +162,12 @@ def upload_document():
         logger.info(f"📋 Request files: {list(request.files.keys())}")
         logger.info(f"📋 Request form: {list(request.form.keys())}")
         
+        # Log request headers for debugging
+        logger.info(f"📋 Request headers: {dict(request.headers)}")
+        logger.info(f"📋 Request content type: {request.content_type}")
+        logger.info(f"📋 Request content length: {request.content_length}")
+        logger.info(f"📋 Request method: {request.method}")
+        
         # Handle multiple files
         uploaded_files = []
         
@@ -164,7 +177,8 @@ def upload_document():
             file = request.files[f'file{file_index}']
             if file.filename != '':
                 uploaded_files.append(file)
-                logger.info(f"📄 Found file{file_index}: {file.filename}")
+                logger.info(f"📄 Found file{file_index}: {file.filename} (size: {len(file.read())} bytes)")
+                file.seek(0)  # Reset file pointer after reading
             file_index += 1
         
         # Also check for single file with key 'file'
@@ -172,11 +186,12 @@ def upload_document():
             file = request.files['file']
             if file.filename != '':
                 uploaded_files.append(file)
-                logger.info(f"📄 Found single file: {file.filename}")
+                logger.info(f"📄 Found single file: {file.filename} (size: {len(file.read())} bytes)")
+                file.seek(0)  # Reset file pointer after reading
         
         if not uploaded_files:
             logger.warning("❌ No valid files found")
-            return jsonify({'error': 'No files uploaded'}), 400
+            return jsonify({'error': 'No files uploaded', 'details': 'No files were found in the request or all files were empty'}), 400
         
         logger.info(f"📁 Processing {len(uploaded_files)} file(s) with multilingual support")
         
@@ -193,16 +208,39 @@ def upload_document():
             try:
                 # Get file information
                 filename = file.filename
+                if not filename:
+                    raise ValueError("File has no name")
+                    
                 file_ext = os.path.splitext(filename)[1].lower()
-                file_content_type = file.content_type
+                if not file_ext:
+                    raise ValueError("File has no extension")
+                    
+                file_content_type = file.content_type or 'application/octet-stream'
+                logger.info(f"📄 Processing file: {filename} (type: {file_content_type}, ext: {file_ext})")
 
                 # Read file bytes for processing
                 file_bytes = file.read()
+                if not file_bytes:
+                    raise ValueError("File is empty")
 
                 # Process with multilingual support
-                document_json, message, language_info = process_multilingual_document(
-                    file_bytes, filename, file_ext, file_content_type
-                )
+                try:
+                    logger.info(f"🔍 Starting to process file: {filename} (size: {len(file_bytes)} bytes)")
+                    document_json, message, language_info = process_multilingual_document(
+                        file_bytes, filename, file_ext, file_content_type
+                    )
+                    logger.info(f"✅ Successfully processed file: {filename}")
+                except Exception as e:
+                    logger.error(f"❌ Error processing file {filename}: {str(e)}", exc_info=True)
+                    # Try to get more detailed error information
+                    import traceback
+                    error_details = traceback.format_exc()
+                    logger.error(f"📜 Error details: {error_details}")
+                    return jsonify({
+                        'error': f'Failed to process file {filename}',
+                        'details': str(e),
+                        'traceback': error_details
+                    }), 400
                 
                 if document_json is None:
                     language_summary['processing_errors'].append({
@@ -479,4 +517,32 @@ def health_check_multilingual():
 if __name__ == '__main__':
     logger.info("🚀 Starting Flask app with multilingual support")
     logger.info(f"🌍 Supporting {len(SUPPORTED_LANGUAGES)} languages")
-    app.run(debug=True)
+    
+    # Configure server settings
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for development
+    
+    # Disable HTTP/2 to avoid protocol errors
+    import werkzeug.serving
+    from werkzeug.serving import WSGIRequestHandler
+    
+    class HTTP1RequestHandler(WSGIRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+    # Use Waitress as the production server for better stability
+    if os.environ.get('FLASK_ENV') == 'production':
+        from waitress import serve
+        port = int(os.environ.get('PORT', 5000))
+        logger.info("🚀 Starting production server with Waitress")
+        serve(app, host='0.0.0.0', port=port, threads=4)
+    else:
+        # Development server with HTTP/1.1
+        logger.info("🚀 Starting development server")
+        app.run(
+            debug=True,
+            host='0.0.0.0',
+            port=5000,
+            threaded=True,
+            request_handler=HTTP1RequestHandler,
+            ssl_context=None  # Remove SSL for development to avoid handshake issues
+        )
