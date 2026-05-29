@@ -8,8 +8,14 @@ from .groq_api import groq_generate, test_groq_connection
 
 load_dotenv()
 
-# Initialize Embedding Model & DB Connection
-model = SentenceTransformer("all-MiniLM-L6-v2")
+# Lazy-loaded to avoid 30-60s cold start on Render free tier
+_model = None
+
+def get_model():
+    global _model
+    if _model is None:
+        _model = SentenceTransformer("all-MiniLM-L6-v2")
+    return _model
 
 # MongoDB setup using env vars
 MONGO_URI = os.getenv("MONGO_URI")
@@ -23,7 +29,7 @@ collection = db[COLLECTION_NAME]
 def get_similar_chunks(query, document_ids, top_k=3):
     try:
         print(f"🔎 Searching for documents: {document_ids}")
-        query_embedding = model.encode(query).tolist()
+        query_embedding = get_model().encode(query).tolist()
 
         # Get all documents matching the given document_ids
         matching_docs = list(collection.find({"document_id": {"$in": document_ids}}))
