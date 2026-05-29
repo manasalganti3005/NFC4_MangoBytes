@@ -33,5 +33,5 @@ COPY . .
 # Expose the Flask port
 EXPOSE 5000
 
-# Start the Flask app
-CMD ["python", "app.py"]
+# Start the Flask app with waitress on Render's dynamic PORT
+CMD sh -c "waitress-serve --host=0.0.0.0 --port=${PORT:-5000} app:app"

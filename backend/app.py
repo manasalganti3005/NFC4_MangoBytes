@@ -15,6 +15,7 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 @app.after_request
 def add_cors_headers(response):
@@ -524,32 +525,25 @@ def health_check_multilingual():
 if __name__ == '__main__':
     logger.info("🚀 Starting Flask app with multilingual support")
     logger.info(f"🌍 Supporting {len(SUPPORTED_LANGUAGES)} languages")
-    
-    # Configure server settings
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
-    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # Disable caching for development
-    
-    # Disable HTTP/2 to avoid protocol errors
-    import werkzeug.serving
-    from werkzeug.serving import WSGIRequestHandler
-    
-    class HTTP1RequestHandler(WSGIRequestHandler):
-        protocol_version = "HTTP/1.1"
 
-    # Use Waitress as the production server for better stability
-    if os.environ.get('FLASK_ENV') == 'production':
+    port = int(os.environ.get('PORT', 5000))
+
+    # Use Waitress when PORT is set (Render/production) or FLASK_ENV=production
+    if os.environ.get('PORT') or os.environ.get('FLASK_ENV') == 'production':
         from waitress import serve
-        port = int(os.environ.get('PORT', 5000))
-        logger.info("🚀 Starting production server with Waitress")
+        logger.info(f"🚀 Starting production server with Waitress on port {port}")
         serve(app, host='0.0.0.0', port=port, threads=4)
     else:
-        # Development server with HTTP/1.1
-        logger.info("🚀 Starting development server")
+        from werkzeug.serving import WSGIRequestHandler
+
+        class HTTP1RequestHandler(WSGIRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+        logger.info(f"🚀 Starting development server on port {port}")
         app.run(
             debug=True,
             host='0.0.0.0',
-            port=5000,
+            port=port,
             threaded=True,
             request_handler=HTTP1RequestHandler,
-            ssl_context=None  # Remove SSL for development to avoid handshake issues
         )
