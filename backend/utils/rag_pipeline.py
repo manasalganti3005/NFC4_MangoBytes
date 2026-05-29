@@ -32,14 +32,14 @@ def get_similar_chunks(query, document_ids, top_k=3):
         if not matching_docs:
             return []
 
-        # 🔧 Set more realistic thresholds for similarity filtering
+        # 🔧 UPDATED: Set much lower thresholds to catch resume/short text matches
         query_words = len(query.split())
         if query_words < 5:
-            similarity_threshold = 0.65  # Higher for short queries
+            similarity_threshold = 0.25  # Lowered from 0.45 for short queries
         elif query_words < 10:
-            similarity_threshold = 0.6   # Medium
+            similarity_threshold = 0.22  # Lowered from 0.40
         else:
-            similarity_threshold = 0.55  # Lower for longer queries
+            similarity_threshold = 0.20  # Lowered from 0.35
 
         print(f"🎯 Using similarity threshold: {similarity_threshold:.2f} (query length: {query_words} words)")
 
@@ -65,26 +65,30 @@ def get_similar_chunks(query, document_ids, top_k=3):
             if chunk['embedding']:
                 try:
                     chunk_emb = np.array(chunk['embedding'])
+                    # Calculate cosine similarity
                     sim = np.dot(chunk_emb, query_emb) / (np.linalg.norm(chunk_emb) * np.linalg.norm(query_emb))
                     
-                    if sim > similarity_threshold:
-                        similarities.append((sim, chunk))
+                    # Store all valid similarities
+                    similarities.append((sim, chunk))
                 except Exception as e:
                     print(f"⚠️ Error calculating similarity: {e}")
                     continue
 
-        print(f"✅ Chunks passing threshold ({similarity_threshold}): {len(similarities)}")
-
-        # Sort by similarity
+        # Sort all chunks by similarity (highest first)
         similarities.sort(key=lambda x: x[0], reverse=True)
-        top_chunks = similarities[:top_k]
 
-        # Fallback if none pass threshold
+        # Filter: First try to get only chunks that pass the threshold
+        top_chunks = [(sim, chunk) for sim, chunk in similarities if sim > similarity_threshold]
+        
+        print(f"✅ Chunks passing threshold ({similarity_threshold}): {len(top_chunks)}")
+
+        # Limit to top K
+        top_chunks = top_chunks[:top_k]
+
+        # 🔧 UPDATED FALLBACK: If strict filtering returns nothing, force return the top results
         if not top_chunks and len(similarities) > 0:
-            print("⚠️ No chunks met the initial threshold, trying with lower threshold...")
-            lower_threshold = similarity_threshold * 0.95
-            top_chunks = [(sim, chunk) for sim, chunk in similarities if sim > lower_threshold][:top_k]
-            print(f"🔍 Found {len(top_chunks)} chunks with relaxed threshold ({lower_threshold:.2f})")
+            print("⚠️ No chunks met the threshold. Returning top 3 matches anyway to avoid empty response.")
+            top_chunks = similarities[:top_k]
 
         # Log selected chunk similarities
         for i, (sim, chunk) in enumerate(top_chunks):

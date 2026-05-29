@@ -3,13 +3,9 @@ import requests
 from dotenv import load_dotenv
 from .groq_api import groq_generate
 import re
-from googletrans import Translator
 import langdetect
 
 load_dotenv()
-
-# Initialize Google Translator as fallback
-google_translator = Translator()
 
 def detect_language(text):
     """
@@ -22,28 +18,11 @@ def detect_language(text):
         confidence = langdetect.detect_langs(text[:1000])[0].prob
         
         print(f"🌍 Language detected: {detected} (confidence: {confidence:.2f})")
-        
-        # If confidence is too low, try Google Translate detection
-        if confidence < 0.8:
-            try:
-                google_detection = google_translator.detect(text[:500])
-                print(f"🌍 Google Translate detection: {google_detection.lang} (confidence: {google_detection.confidence})")
-                
-                if google_detection.confidence > confidence:
-                    return google_detection.lang
-            except:
-                pass
-        
         return detected
         
     except Exception as e:
         print(f"❌ Language detection error: {str(e)}")
-        # Fallback: try Google Translate
-        try:
-            google_detection = google_translator.detect(text[:500])
-            return google_detection.lang
-        except:
-            return 'unknown'
+        return 'unknown'
 
 def is_english(text):
     """Check if text is already in English"""

@@ -2,6 +2,8 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import re
+# --- NEW IMPORT ---
+from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
@@ -10,55 +12,94 @@ MONGO_URI = os.getenv("MONGO_URI")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME")
 
+# --- NEW: LOAD EMBEDDING MODEL ---
+# We must use the exact same model used during data ingestion
+print("Loading embedding model...")
+embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+print("Model loaded.")
+
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
 collection = db[COLLECTION_NAME]
 
-def simple_search(query, document_ids, top_k=3):
-    """Simple keyword-based search without embeddings"""
+# --- NEW FUNCTION: Replaces the old regex 'simple_search' ---
+def vector_search(query, top_k=3):
+    """
+    Perform a semantic vector search against MongoDB Atlas using the defined index.
+    """
     try:
-        # Get documents
-        matching_docs = list(collection.find({"document_id": {"$in": document_ids}}))
-        
-        if not matching_docs:
-            return []
-        
-        # Extract keywords from query
-        query_words = set(re.findall(r'\b\w+\b', query.lower()))
-        
-        # Score chunks based on keyword matches
-        scored_chunks = []
-        for doc in matching_docs:
+        print(f"Generating embedding for query: '{query}'")
+        # 1. Convert user query to vector
+        query_embedding = embedding_model.encode(query).tolist()
+
+        # 2. Define the MongoDB Aggregation Pipeline
+        pipeline = [
+            {
+                "$vectorSearch": {
+                    # --- YOUR INDEX NAME GOES HERE ---
+                    "index": "vector_index_final",
+                    # ---------------------------------
+                    # The path to the vectors inside nested chunks
+                    "path": "chunks.embedding",
+                    "queryVector": query_embedding,
+                    # Look at more candidates for better accuracy before limiting
+                    "numCandidates": top_k * 10, 
+                    "limit": top_k
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "filename": 1,
+                    # We need the text content of the chunks
+                    "chunks.text": 1,
+                    "score": {"$meta": "vectorSearchScore"}
+                }
+            }
+        ]
+
+        print("Executing vector search against MongoDB...")
+        # 3. Run the pipeline
+        mongo_results = list(collection.aggregate(pipeline))
+        print(f"Found {len(mongo_results)} matching parent documents.")
+
+        # 4. Process results to match the format expected by 'simple_answer'
+        # Since Atlas returns the whole document, we extract all text chunks from 
+        # the top matching documents.
+        processed_chunks = []
+        for doc in mongo_results:
+            # The vector score belongs to the document match
+            doc_score = doc.get('score', 0)
+            filename = doc.get('filename', 'Unknown')
+            
             if 'chunks' in doc:
-                for chunk in doc['chunks']:
-                    chunk_text = chunk.get('text', '').lower()
-                    chunk_words = set(re.findall(r'\b\w+\b', chunk_text))
-                    
-                    # Calculate simple keyword overlap score
-                    overlap = len(query_words.intersection(chunk_words))
-                    if overlap > 0:
-                        scored_chunks.append({
-                            'chunk': chunk.get('text', ''),
-                            'filename': doc.get('filename', 'Unknown'),
-                            'document_id': doc.get('document_id', 'Unknown'),
-                            'score': overlap,
-                            'similarity': overlap / len(query_words) if query_words else 0
+                for chunk_obj in doc['chunks']:
+                    # Get the text content of the chunk
+                    text_content = chunk_obj.get('text', '')
+                    if text_content:
+                        processed_chunks.append({
+                            # Using 'chunk' key to match expected input of simple_answer
+                            'chunk': text_content, 
+                            'filename': filename,
+                            # Using parent doc score for now as approximation
+                            'score': doc_score 
                         })
         
-        # Sort by score and return top_k
-        scored_chunks.sort(key=lambda x: x['score'], reverse=True)
-        return scored_chunks[:top_k]
-        
+        # Return the flattened list of text chunks for answer generation
+        return processed_chunks
+
     except Exception as e:
-        print(f"Simple search error: {str(e)}")
+        print(f"❌ Vector search error: {str(e)}")
         return []
 
+# --- NO CHANGES NEEDED IN THIS FUNCTION ---
 def simple_answer(query, chunks):
     """Generate a simple answer from chunks without using LLM"""
     if not chunks:
         return "I couldn't find any relevant information in the uploaded documents to answer your question."
     
     # Combine relevant chunks
+    # Note: The previous code used chunk['chunk'], ensuring compatibility here.
     context = "\n\n".join([chunk['chunk'] for chunk in chunks])
     
     # Simple answer generation based on query type
@@ -83,31 +124,41 @@ def simple_answer(query, chunks):
         # Default response
         return f"Here's relevant information from the document:\n\n{chunks[0]['chunk'][:300]}..."
 
-def handle_simple_rag_query(user_query, document_ids):
-    """Handle RAG query using simple keyword search and answer generation"""
+# --- UPDATED MAIN HANDLER ---
+def handle_simple_rag_query(user_query, document_ids=None):
+    """
+    Handle RAG query using Vector Search and simple answer generation.
+    NOTE: document_ids filter is ignored in this basic vector search implementation.
+    """
     try:
-        print(f"🔍 Simple RAG search for: '{user_query}'")
+        print(f"🔍 Starting RAG search for: '{user_query}'")
         
-        # Get relevant chunks
-        chunks = simple_search(user_query, document_ids)
+        # --- CHANGE: Call vector_search instead of simple_search ---
+        # We ignore document_ids for now to allow searching across all data
+        chunks = vector_search(user_query, top_k=3)
         
         if not chunks:
+            print("❌ No chunks found via vector search.")
+            # Fallback message if vector search fails to find anything
             return {
-                "answer": f"I couldn't find any relevant information in the uploaded documents to answer: '{user_query}'. Please try rephrasing your question or ask about a different topic."
+                "answer": f"I couldn't find any relevant information in the uploaded documents to answer: '{user_query}'. Please try rephrasing your question."
             }
         
-        print(f"✅ Found {len(chunks)} relevant chunks")
+        print(f"✅ Passing {len(chunks)} text chunks to answer generator.")
         
-        # Generate simple answer
+        # Generate simple answer (this function remains unchanged)
         answer = simple_answer(user_query, chunks)
+        
+        # Get unique sources
+        sources = list(set([chunk['filename'] for chunk in chunks]))
         
         return {
             "answer": answer,
-            "sources": [chunk['filename'] for chunk in chunks]
+            "sources": sources
         }
         
     except Exception as e:
-        print(f"❌ Simple RAG error: {str(e)}")
+        print(f"❌ RAG error: {str(e)}")
         return {
             "answer": f"I encountered an error while processing your request: {str(e)}. Please try again."
-        } 
+        }
