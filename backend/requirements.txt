@@ -1,9 +1,10 @@
 # For Embedding Models
+# NOTE: torch is installed as the CPU-only build in the Dockerfile to avoid
+# pulling the multi-GB CUDA stack (cudnn/cublas/etc.), which OOM-kills the
+# 512 MB free tier. torchvision/torchaudio are unused and intentionally removed.
 sentence-transformers==5.1.0
 huggingface-hub==0.34.4
 torch==2.9.0
-torchvision==0.24.0
-torchaudio==2.9.0
 tokenizers==0.20.0
 transformers==4.45.0
 numpy==1.26.4
