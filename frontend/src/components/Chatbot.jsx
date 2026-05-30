@@ -108,6 +108,19 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
     setDocumentSummaries(summaries);
   };
 
+  // Strip emojis and markdown syntax so jsPDF (Latin-1 font) renders clean text
+  const stripForPdf = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/#{1,6}\s*/g, '')           // ## headings
+      .replace(/\*\*(.+?)\*\*/g, '$1')     // **bold**
+      .replace(/\*(.+?)\*/g, '$1')         // *italic*
+      .replace(/^[-*+]\s+/gm, '  - ')      // bullet markers
+      .replace(/[^\x00-\x7F]/g, '')        // strip all non-ASCII (emojis, special chars)
+      .replace(/\n{3,}/g, '\n\n')          // collapse excess newlines
+      .trim();
+  };
+
   const downloadChatReport = () => {
     setIsDownloading(true);
     
@@ -141,7 +154,7 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
       doc.setFontSize(11);
       doc.setFont(undefined, 'normal');
       
-      messages.forEach((msg, index) => {
+      messages.forEach((msg) => {
         const sender = msg.sender === 'user' ? 'You' : 'Assistant';
         const timestamp = msg.timestamp.toLocaleString();
         
@@ -158,7 +171,7 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
         
         // Message text
         doc.setFont(undefined, 'normal');
-        const messageText = typeof msg.text === 'string' ? msg.text : 'Formatted content';
+        const messageText = stripForPdf(typeof msg.text === 'string' ? msg.text : 'Formatted content');
         const lines = doc.splitTextToSize(messageText, textWidth);
         
         lines.forEach(line => {
@@ -228,7 +241,7 @@ const Chatbot = ({ documentNames, documentIds, onBackToUpload }) => {
           
           // Add summary content
           doc.setFont(undefined, 'normal');
-          const summaryText = summary.summary;
+          const summaryText = stripForPdf(summary.summary);
           const lines = doc.splitTextToSize(summaryText, textWidth);
           
           lines.forEach(line => {
