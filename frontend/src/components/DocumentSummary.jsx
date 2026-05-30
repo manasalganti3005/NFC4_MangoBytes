@@ -8,22 +8,23 @@ import './DocumentSummary.css';
 const cleanMarkdown = (text) => {
   if (!text) return "";
   return text
-    // 1. Fix Bullet Points: Replace "•" with a newline and a standard markdown dash
-    .replace(/•/g, '\n-')
-    
-    // 2. Fix Section Headers: Ensure "Section X:" starts on a new line
-    .replace(/(#{1,6} |^)(\*\*Section \d+:)/gm, '\n$2')
-    
-    // 3. Fix Bold Headers running into text: Ensure "Key Points" and "Details" start on new lines
-    .replace(/\*\*Key Points\*\*/g, '\n\n**Key Points**')
-    .replace(/\*\*Details\*\*/g, '\n\n**Details**')
-    .replace(/\*\*Unique Contributions\*\*/g, '\n\n**Unique Contributions**')
-    
-    // 4. Fix List Items: Ensure dashes have a newline before them if they are stuck to text
-    .replace(/([^\n])\s*-\s/g, '$1\n- ')
-    
-    // 5. Cleanup: Remove excessive newlines
-    .replace(/\n{3,}/g, '\n\n');
+    // 1. Promote known bold labels into h4 headers so they render as styled
+    //    section breaks instead of awkward inline bold text
+    .replace(/\*\*(Key Points|Important Details|Details|Unique Contributions|Overview|Conclusion|Summary|Highlights|Findings)\*\*:?/gi,
+      (_, label) => `\n\n#### ${label}\n`)
+
+    // 2. Convert bullet characters to markdown list items
+    .replace(/•\s*/g, '\n- ')
+
+    // 3. Remove empty list items (a dash with nothing after it)
+    .replace(/^-\s*$/gm, '')
+
+    // 4. Ensure dashes mid-sentence get a newline before them
+    .replace(/([^\n])\n- /g, '$1\n\n- ')
+
+    // 5. Cleanup: collapse 3+ newlines to 2
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 };
 
 const DocumentSummary = ({ documentIds, documentNames, onSummariesUpdate }) => {
