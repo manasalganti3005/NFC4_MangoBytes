@@ -1,21 +1,12 @@
-from sentence_transformers import SentenceTransformer
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import requests
 import numpy as np
 from .groq_api import groq_generate, test_groq_connection
+from .embeddings import embed_texts
 
 load_dotenv()
-
-# Lazy-loaded to avoid 30-60s cold start on Render free tier
-_model = None
-
-def get_model():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _model
 
 # MongoDB setup using env vars
 MONGO_URI = os.getenv("MONGO_URI")
@@ -29,7 +20,7 @@ collection = db[COLLECTION_NAME]
 def get_similar_chunks(query, document_ids, top_k=3):
     try:
         print(f"🔎 Searching for documents: {document_ids}")
-        query_embedding = get_model().encode(query).tolist()
+        query_embedding = embed_texts(query)
 
         # Get all documents matching the given document_ids
         matching_docs = list(collection.find({"document_id": {"$in": document_ids}}))

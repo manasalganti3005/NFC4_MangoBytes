@@ -19,16 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy requirements file first to leverage Docker build caching
 COPY requirements.txt .
 
-# Install Python dependencies.
-# Install the CPU-only torch first from PyTorch's CPU index so pip does not pull
-# the multi-GB CUDA build. The subsequent requirements install then sees torch
-# 2.9.0 already satisfied and skips it.
+# Install Python dependencies. Embeddings are served by the HuggingFace
+# Inference API, so there is no heavy ML stack (torch/transformers) to install
+# and no model to pre-bake.
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch==2.9.0 --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
-
-# Pre-bake the model into the image so cold starts load from disk, not network
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Copy the rest of the backend source code
 COPY . .

@@ -2,8 +2,7 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import re
-# --- NEW IMPORT ---
-from sentence_transformers import SentenceTransformer
+from .embeddings import embed_texts
 
 load_dotenv()
 
@@ -11,12 +10,6 @@ load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")
 DATABASE_NAME = os.getenv("DATABASE_NAME")
 COLLECTION_NAME = os.getenv("COLLECTION_NAME")
-
-# --- NEW: LOAD EMBEDDING MODEL ---
-# We must use the exact same model used during data ingestion
-print("Loading embedding model...")
-embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-print("Model loaded.")
 
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
@@ -30,7 +23,7 @@ def vector_search(query, top_k=3):
     try:
         print(f"Generating embedding for query: '{query}'")
         # 1. Convert user query to vector
-        query_embedding = embedding_model.encode(query).tolist()
+        query_embedding = embed_texts(query)
 
         # 2. Define the MongoDB Aggregation Pipeline
         pipeline = [

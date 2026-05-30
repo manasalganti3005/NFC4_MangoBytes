@@ -1,13 +1,10 @@
-from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import nltk
 import uuid
 from .translator import translate_document_content, detect_language
+from .embeddings import embed_texts
 
 nltk.download('punkt')
-
-# Load embedding model
-embedding_model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 # --- Chunking using LangChain RecursiveCharacterTextSplitter ---
 def chunk_text(text, chunk_size=1000, chunk_overlap=200):
@@ -19,10 +16,9 @@ def chunk_text(text, chunk_size=1000, chunk_overlap=200):
     chunks = text_splitter.split_text(text)
     return chunks
 
-# Generate embeddings for chunks
+# Generate embeddings for chunks via the hosted HuggingFace Inference API
 def generate_embeddings(chunks):
-    embeddings = embedding_model.encode(chunks).tolist()
-    return embeddings
+    return embed_texts(chunks)
 
 # Process Document and Prepare JSON structure with translation support
 def process_document(file_name, file_type, raw_text):

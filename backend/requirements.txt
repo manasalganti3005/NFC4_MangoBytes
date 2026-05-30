@@ -1,12 +1,8 @@
 # For Embedding Models
-# NOTE: torch is installed as the CPU-only build in the Dockerfile to avoid
-# pulling the multi-GB CUDA stack (cudnn/cublas/etc.), which OOM-kills the
-# 512 MB free tier. torchvision/torchaudio are unused and intentionally removed.
-sentence-transformers==5.1.0
-huggingface-hub==0.34.4
-torch==2.9.0
-tokenizers==0.20.0
-transformers==4.45.0
+# NOTE: Embeddings are computed via the HuggingFace Inference API (see
+# utils/embeddings.py), NOT a local model. torch/sentence-transformers/
+# transformers are intentionally NOT installed because they exceed Render's
+# 512 MB free tier and OOM-kill the container during uploads.
 numpy==1.26.4
 
 # For Text Chunking
