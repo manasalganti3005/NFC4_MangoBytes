@@ -15,7 +15,9 @@ import requests
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 HF_MODEL = os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-HF_URL = f"https://api-inference.huggingface.co/pipeline/feature-extraction/{HF_MODEL}"
+# HuggingFace Inference Providers router (the legacy api-inference.huggingface.co
+# feature-extraction endpoint has been retired).
+HF_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL}/pipeline/feature-extraction"
 
 # Keep batches small so request bodies stay well within API limits.
 _BATCH_SIZE = 32
@@ -31,7 +33,7 @@ def _headers():
 
 def _embed_batch(batch, max_retries=4):
     """Embed a list of strings, retrying while the model warms up (503)."""
-    payload = {"inputs": batch, "options": {"wait_for_model": True}}
+    payload = {"inputs": batch}
     last_err = None
     for attempt in range(max_retries):
         try:
