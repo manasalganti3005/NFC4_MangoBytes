@@ -1,4 +1,5 @@
 #root {
+  width: 100%;
   max-width: 100%;
   margin: 0;
   padding: 0;
@@ -8,8 +9,10 @@
 }
 
 .App {
+  width: 100%;
   text-align: center;
   min-height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   flex-direction: column;
@@ -25,6 +28,7 @@
 .chat-layout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   width: 100%;
   overflow: hidden;
 }
@@ -48,16 +52,20 @@
 @media (max-width: 768px) {
   .chat-layout {
     flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: visible;
   }
-  
+
+  .chat-section {
+    flex: 1;
+    min-height: 100dvh;
+  }
+
   .summary-section {
     border-left: none;
     border-top: 2px solid rgba(255, 255, 255, 0.1);
-    height: 50vh;
-  }
-  
-  .chat-section {
-    height: 50vh;
   }
 }
 
